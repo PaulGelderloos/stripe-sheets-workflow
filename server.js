@@ -29,4 +29,5 @@ app.post("/webhook", async (req, res) => {
   res.json({ received: true });
 });
 
-app.listen(3000, () => console.log("Server draait op poort 3000"));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server draait op poort ${PORT}`));
