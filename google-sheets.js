@@ -28,18 +28,18 @@ async function syncToGoogleSheets(paymentIntent) {
 
 function mapPaymentToColumns(payment, headers) {
   const fieldMap = {
-    "Payment ID":      payment.id,
-    "Status":          payment.status,
-    "Bedrag":          (payment.amount / 100).toFixed(2),
-    "Valuta":          payment.currency?.toUpperCase(),
-    "Beschrijving":    payment.description || "",
-    "Klant ID":        payment.customer || "",
-    "E-mail":          payment.metadata?.email || "",
-    "Naam":            payment.metadata?.name || "",
-    "Product":         payment.metadata?.product || "",
-    "Aangemaakt":      new Date(payment.created * 1000).toLocaleString("nl-NL"),
-    "Betaalmethode":   payment.payment_method_types?.join(", ") || "",
-    "Risico":          payment.risk_level || "normal",
+    "Payment ID":           payment.id,
+    "Status":               payment.status,
+    "Naam cursus":          payment.metadata?.sheet_name || "",
+    "Bedrag":               (payment.amount / 100).toFixed(2),
+    "Totaal verschuldigd":  (payment.amount / 100).toFixed(2),
+    "Valuta":               payment.currency?.toUpperCase(),
+    "E-mail":               payment.metadata?.email || payment.receipt_email || "",
+    "Volledige naam":       payment.metadata?.name || "",
+    "Actiecode":            payment.metadata?.actiecode || "",
+    "Accommodatie":         payment.metadata?.accommodatie || "",
+    "Betaalmethode":        payment.payment_method_types?.join(", ") || "",
+    "Aangemaakt":           new Date(payment.created * 1000).toLocaleString("nl-NL"),
   };
   return headers.map((header) => fieldMap[header] ?? "");
 }
