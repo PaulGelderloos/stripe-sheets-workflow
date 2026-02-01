@@ -1,7 +1,11 @@
-  return headers.map((header) => fieldMap[header] ?? "");
-}
+const { google } = require("googleapis");
 
-module.exports = { syncToGoogleSheets };
+const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+
+const auth = new google.auth.GoogleAuth({
+  credentials: credentials,
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+});
 
 async function syncToGoogleSheets(paymentIntent) {
   const client = await auth.getClient();
