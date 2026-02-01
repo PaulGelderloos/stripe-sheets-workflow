@@ -5,7 +5,9 @@ const { syncToGoogleSheets } = require("./google-sheets");
 
 const app = express();
 app.use(express.raw({ type: "application/json" }));
-
+app.get("/", (req, res) => {
+  res.json({ status: "ok" });
+});
 app.post("/webhook", async (req, res) => {
   const sig = req.headers["stripe-signature"];
   let event;
