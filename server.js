@@ -23,10 +23,14 @@ app.post("/webhook", async (req, res) => {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  if (event.type === "payment_intent.succeeded") {
-    const paymentIntent = event.data.object;
-    await syncToGoogleSheets(paymentIntent);
-  }
+ console.log(`Received event type: ${event.type}`);
+
+if (event.type === "payment_intent.succeeded") {
+  console.log(`Processing payment: ${event.data.object.id}`);
+  const paymentIntent = event.data.object;
+  await syncToGoogleSheets(paymentIntent);
+  console.log(`Payment processed successfully`);
+}
 
   res.json({ received: true });
 });
