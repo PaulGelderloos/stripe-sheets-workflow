@@ -40,6 +40,7 @@ function mapPaymentToColumns(payment, headers) {
     "Accommodatie":         payment.metadata?.accommodatie || "",
     "Betaalmethode":        payment.payment_method_types?.join(", ") || "",
     "Aangemaakt":           new Date(payment.created * 1000).toLocaleString("nl-NL"),
+    "Cursusdatum":          payment.metadata?.cursusdatum || "",
   };
   return headers.map((header) => fieldMap[header] ?? "");
 }
