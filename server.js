@@ -25,13 +25,24 @@ app.post("/webhook", async (req, res) => {
 
  console.log(`Received event type: ${event.type}`);
 
-if (event.type === "payment_intent.succeeded") {
-  console.log(`Processing payment: ${event.data.object.id}`);
-  const paymentIntent = event.data.object;
+if (event.type === "checkout.session.completed") {
+  console.log(`Processing checkout session: ${event.data.object.id}`);
+  const session = event.data.object;
+  
+  // Haal de payment intent op
+  const paymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent);
+  
+  // Voeg metadata van de session toe aan de payment intent
+  paymentIntent.metadata = {
+    ...paymentIntent.metadata,
+    ...session.metadata,
+    email: session.customer_details?.email || paymentIntent.metadata?.email,
+    name: session.customer_details?.name || paymentIntent.metadata?.name,
+  };
+  
   await syncToGoogleSheets(paymentIntent);
   console.log(`Payment processed successfully`);
 }
-
   res.json({ received: true });
 });
 
