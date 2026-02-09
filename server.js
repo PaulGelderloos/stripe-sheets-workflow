@@ -32,10 +32,23 @@ if (event.type === "checkout.session.completed") {
   // Haal de payment intent op
   const paymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent);
   
+  // Haal custom fields uit de session
+  const customFields = {};
+  if (session.custom_fields) {
+    session.custom_fields.forEach(field => {
+      if (field.dropdown?.value) {
+        customFields[field.key] = field.dropdown.options.find(opt => opt.value === field.dropdown.value)?.label || field.dropdown.value;
+      } else if (field.text?.value) {
+        customFields[field.key] = field.text.value;
+      }
+    });
+  }
+  
   // Voeg metadata van de session toe aan de payment intent
   paymentIntent.metadata = {
     ...paymentIntent.metadata,
     ...session.metadata,
+    ...customFields,
     email: session.customer_details?.email || paymentIntent.metadata?.email,
     name: session.customer_details?.name || paymentIntent.metadata?.name,
   };
