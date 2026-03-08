@@ -15,7 +15,6 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
-app.use(express.raw({ type: "application/json" }));
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
