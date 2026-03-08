@@ -216,3 +216,6 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => console.log(`Server draait op poort ${PORT}`));
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+});
