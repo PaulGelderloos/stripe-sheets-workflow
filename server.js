@@ -1,4 +1,7 @@
 // v2
+process.on('uncaughtException', (err) => {
+  console.error('CRASH:', err.message, err.stack);
+});
 require("dotenv").config();
 const express = require("express");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
@@ -215,7 +218,6 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server draait op poort ${PORT}`));
-process.on('uncaughtException', (err) => {
-  console.error('UNCAUGHT EXCEPTION:', err);
+app.listen(PORT, '0.0.0.0', () => console.log(`Server draait op poort ${PORT}`))
+  .on('error', (err) => console.error('Listen error:', err));
 });
