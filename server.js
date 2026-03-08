@@ -8,6 +8,13 @@ const mollie = createMollieClient({ apiKey: process.env.MOLLIE_API_KEY });
 const jsonParser = express.json();
 
 const app = express();
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
 app.use(express.raw({ type: "application/json" }));
 
 // ── Status check ───────────────────────────────────────
