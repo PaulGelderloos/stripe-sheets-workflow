@@ -12,14 +12,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@mollie/api-client": "^3.7.0",
     "dotenv": "^17.2.3",
-    "dependencies": {
-  "@mollie/api-client": "^3.7.0",
-  "dotenv": "^17.2.3",
-  "express": "^5.2.1",
-  "googleapis": "^171.0.0",
-  "stripe": "^20.3.0"
-}
     "express": "^5.2.1",
     "googleapis": "^171.0.0",
     "stripe": "^20.3.0"
