@@ -1,4 +1,4 @@
-// v2
+// v3
 process.on('uncaughtException', (err) => {
   console.error('CRASH:', err.message, err.stack);
 });
@@ -20,12 +20,40 @@ app.get("/", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// ── HubSpot helper: contact updaten ───────────────────
+async function updateHubSpotContact(contactId, properties) {
+  if (!contactId) return;
+  await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
+    method:  'PATCH',
+    headers: {
+      'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
+      'Content-Type':  'application/json',
+    },
+    body: JSON.stringify({ properties }),
+  });
+}
+
+// ── HubSpot helper: nieuw contact aanmaken ─────────────
+async function createHubSpotContact(properties) {
+  const res = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
+    method:  'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
+      'Content-Type':  'application/json',
+    },
+    body: JSON.stringify({ properties }),
+  });
+  const data = await res.json();
+  if (!res.ok) console.error('HubSpot contact aanmaken mislukt:', data);
+  return data;
+}
+
 // ── Mollie: betaling aanmaken ──────────────────────────
 app.post('/mollie/betaling/create', jsonParser, async (req, res) => {
   const {
     methode, voornaam, achternaam, email, telefoon,
     straat, huisnummer, postcode, stad,
-    bedrag, cursusnaam, hubspot_contact_id, centrum,
+    bedrag, cursusnaam, hubspot_contact_id, centrum, tarief,
     extraData = {},
   } = req.body;
 
@@ -61,7 +89,7 @@ app.post('/mollie/betaling/create', jsonParser, async (req, res) => {
           vatRate: '21.00', vatAmount: { currency: 'EUR', value: btw.toFixed(2) },
         }],
         metadata: {
-          type: 'in3_order', hubspot_contact_id, centrum, cursusnaam,
+          type: 'in3_order', hubspot_contact_id, centrum, cursusnaam, tarief,
           naam: `${voornaam} ${achternaam}`, email,
           bedrag_incl: totaal.toFixed(2),
           bedrag_excl: (totaal / 1.21).toFixed(2),
@@ -77,7 +105,7 @@ app.post('/mollie/betaling/create', jsonParser, async (req, res) => {
         redirectUrl: `${process.env.SITE_URL}/bedankt`,
         webhookUrl:  `${process.env.RAILWAY_URL}/mollie/webhook`,
         metadata: {
-          type: 'payment', hubspot_contact_id, centrum, cursusnaam,
+          type: 'payment', hubspot_contact_id, centrum, cursusnaam, tarief,
           naam: `${voornaam} ${achternaam}`, email,
           bedrag_incl: parseFloat(bedrag).toFixed(2),
           bedrag_excl: (parseFloat(bedrag) / 1.21).toFixed(2),
@@ -101,7 +129,7 @@ app.post('/mollie/webhook', jsonParser, async (req, res) => {
 
   try {
     const VASTE_KEYS = new Set([
-      'type','hubspot_contact_id','centrum','cursusnaam',
+      'type','hubspot_contact_id','centrum','cursusnaam','tarief',
       'naam','email','bedrag_incl','bedrag_excl',
     ]);
 
@@ -130,36 +158,45 @@ app.post('/mollie/webhook', jsonParser, async (req, res) => {
       Object.entries(meta).filter(([k]) => !VASTE_KEYS.has(k))
     );
 
-    // HubSpot updaten
-    if (contactId) {
-      await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
-        method:  'PATCH',
-        headers: {
-          'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
-          'Content-Type':  'application/json',
-        },
-        body: JSON.stringify({ properties: {
-          cursusbedrag_betaald: meta.bedrag_incl,
-          initiatie_datum:      new Date().toISOString().split('T')[0],
-          betaalmethode:        methode,
-          centrum_boekhouding:  centrum,
-        }}),
+    // ── HubSpot: hoofdcontact updaten ──────────────────
+    await updateHubSpotContact(contactId, {
+      cursusbedrag_betaald: meta.bedrag_incl,
+      initiatie_datum:      new Date().toISOString().split('T')[0],
+      betaalmethode:        methode,
+      centrum_boekhouding:  centrum,
+    });
+
+    // ── HubSpot: partner contact aanmaken ──────────────
+    const isPartner = meta.tarief && meta.tarief.includes('partner');
+    if (isPartner && extraData.partner_email) {
+      await createHubSpotContact({
+        firstname:     extraData.partner_voornaam       || '',
+        lastname:      extraData.partner_achternaam     || '',
+        email:         extraData.partner_email,
+        date_of_birth: extraData.partner_geboortedatum  || '',
+        cursusbedrag_betaald: meta.bedrag_incl,
+        initiatie_datum:      new Date().toISOString().split('T')[0],
+        centrum_boekhouding:  centrum,
       });
+      console.log(`✓ Partner contact aangemaakt: ${extraData.partner_email}`);
     }
 
-    // Google Sheets
-    await fetch(process.env.SHEETS_WEBHOOK_URL, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        datum: new Date().toLocaleDateString('nl-NL'),
-        naam, email, telefoon,
-        cursus: meta.cursusnaam, centrum,
+    // ── Google Sheets ──────────────────────────────────
+    await syncToGoogleSheets({
+      metadata: {
+        cursus:     meta.cursusnaam,
+        centrum,
+        naam,
+        email,
+        telefoon,
         bedragIncl: meta.bedrag_incl,
         bedragExcl: meta.bedrag_excl,
-        methode, referentie: id,
+        methode,
+        referentie: id,
+        tarief:     meta.tarief || '',
+        datum:      new Date().toLocaleDateString('nl-NL'),
         ...extraData,
-      }),
+      }
     });
 
     console.log(`✓ Mollie ${id} (${methode}) verwerkt`);
