@@ -160,10 +160,12 @@ app.post('/mollie/webhook', jsonParser, async (req, res) => {
 
     // ── HubSpot: hoofdcontact updaten ──────────────────
     await updateHubSpotContact(contactId, {
-      cursusbedrag_betaald: meta.bedrag_incl,
-      initiatie_datum:      new Date().toISOString().split('T')[0],
-      betaalmethode:        methode,
-      centrum_boekhouding:  centrum,
+      cursusbedrag_betaald:       meta.bedrag_incl,
+      initiatie_datum:            new Date().toISOString().split('T')[0],
+      betaalmethode:              methode,
+      centrum_boekhouding:        centrum,
+      tm_status:                  'Meditator',
+      global_subscription_status: 'Soft Opt-In',
     });
 
     // ── HubSpot: partner contact aanmaken ──────────────
