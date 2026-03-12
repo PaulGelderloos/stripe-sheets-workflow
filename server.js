@@ -78,7 +78,7 @@ app.post('/mollie/betaling/create', jsonParser, async (req, res) => {
         webhookUrl:  `${process.env.RAILWAY_URL}/mollie/webhook`,
         billingAddress: {
           givenName: voornaam.trim(), familyName: achternaam.trim(),
-          email: email.trim(), phone: telefoon.trim(),
+          email: email.trim(), phone: telefoon?.trim() || '+31000000000'
           streetAndNumber: `${straat.trim()} ${huisnummer.trim()}`,
           postalCode: postcode.trim(), city: stad.trim(), country: 'NL',
         },
@@ -202,8 +202,9 @@ app.post('/mollie/webhook', jsonParser, async (req, res) => {
     });
 
     console.log(`✓ Mollie ${id} (${methode}) verwerkt`);
-  } catch (err) {
-    console.error('Mollie webhook fout:', err);
+} catch (err) {
+    console.error('Mollie webhook fout:', err.message, err.stack);
+    // Niet re-throwen, zodat de server blijft draaien
   }
 });
 
