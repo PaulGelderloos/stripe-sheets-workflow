@@ -78,7 +78,7 @@ app.post('/mollie/betaling/create', jsonParser, async (req, res) => {
         webhookUrl:  `${process.env.RAILWAY_URL}/mollie/webhook`,
         billingAddress: {
           givenName: voornaam.trim(), familyName: achternaam.trim(),
-          email: email.trim(), phone: telefoon?.trim() || '+31000000000'
+          email: email.trim(), phone: telefoon?.trim() || '+31000000000',
           streetAndNumber: `${straat.trim()} ${huisnummer.trim()}`,
           postalCode: postcode.trim(), city: stad.trim(), country: 'NL',
         },
