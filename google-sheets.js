@@ -43,16 +43,17 @@ function mapPaymentToColumns(payment, headers) {
     "Naam cursus":          payment.metadata?.sheet_name || "",
     "Bedrag":               (payment.amount / 100).toFixed(2),
     "Totaal verschuldigd":  (payment.amount / 100).toFixed(2),
-    "Valuta":               payment.currency?.toUpperCase(),
+    "Valuta":               payment.currency?.toUpperCase() || "",
     "E-mail":               payment.metadata?.email || payment.receipt_email || "",
     "Volledige naam":       payment.metadata?.name || "",
     "Actiecode":            payment.metadata?.actiecode || "",
-    "Accommodatie":         payment.metadata?.accommodatie || "",
     "Betaalmethode":        payment.payment_method_types?.join(", ") || "",
+    "Accommodatie":         payment.metadata?.accommodatie || "",
     "Aangemaakt":           new Date(payment.created * 1000).toLocaleString("nl-NL"),
     "Cursusdatum":          payment.metadata?.cursusdatum || "",
   };
-  return headers.map((header) => fieldMap[header] ?? "");
+  
+  return headers.map((header) => fieldMap[header.trim()] || "");
 }
 
 // ── Mollie ────────────────────────────────────────────
