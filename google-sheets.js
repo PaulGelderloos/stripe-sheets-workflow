@@ -18,6 +18,8 @@ async function syncToGoogleSheets(paymentIntent) {
     range: `'${sheetName}'!1:1`,
   });
   const headers = headerRes.data.values?.[0] || [];
+  console.log('Headers gelezen:', JSON.stringify(headers));
+  console.log('RowData gemaakt:', JSON.stringify(rowData));
   const rowData = isMollie
     ? mapMollieToColumns(paymentIntent, headers)
     : mapPaymentToColumns(paymentIntent, headers);
