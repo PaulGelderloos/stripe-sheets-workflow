@@ -1,4 +1,4 @@
-// v4 - Robuuste error handling voor Mollie + Stripe
+// v5 - Robuuste error handling voor Mollie + Stripe
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
   // Server blijft draaien!
@@ -26,10 +26,10 @@ let stripe, syncToGoogleSheets;
 if (process.env.STRIPE_SECRET_KEY) {
   stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
   syncToGoogleSheets = require("./google-sheets").syncToGoogleSheets;
-  
+
   app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
     try {
-      const sig = req.headers["stripe-signature"];
+      const sig   = req.headers["stripe-signature"];
       const event = stripe.webhooks.constructEvent(
         req.body,
         sig,
@@ -40,14 +40,16 @@ if (process.env.STRIPE_SECRET_KEY) {
 
       if (event.type === "checkout.session.completed") {
         console.log(`Processing checkout session: ${event.data.object.id}`);
-        const session = event.data.object;
+        const session       = event.data.object;
         const paymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent);
 
         const customFields = {};
         if (session.custom_fields) {
           session.custom_fields.forEach(field => {
             if (field.dropdown?.value) {
-              customFields[field.key] = field.dropdown.options.find(opt => opt.value === field.dropdown.value)?.label || field.dropdown.value;
+              customFields[field.key] = field.dropdown.options.find(
+                opt => opt.value === field.dropdown.value
+              )?.label || field.dropdown.value;
             } else if (field.text?.value) {
               customFields[field.key] = field.text.value;
             }
@@ -82,14 +84,38 @@ if (process.env.MOLLIE_API_KEY) {
   try {
     const { createMollieClient } = require('@mollie/api-client');
     mollie = createMollieClient({ apiKey: process.env.MOLLIE_API_KEY });
-    
+
     const jsonParser = express.json();
 
-    // ── HubSpot helpers ────────────────────────────────
-    async function updateHubSpotContact(contactId, properties) {
-      if (!contactId || !process.env.HUBSPOT_PRIVATE_APP_TOKEN) return;
+    // ── HubSpot: subscription ID cache ────────────────
+    // Wordt eenmalig opgehaald bij eerste betaling en daarna hergebruikt
+    let cachedSubscriptionId = null;
+
+    async function getSubscriptionId() {
+      if (cachedSubscriptionId) return cachedSubscriptionId;
       try {
-        await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
+        const res  = await fetch('https://api.hubapi.com/communication-preferences/v3/definitions', {
+          headers: { 'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}` },
+        });
+        const data = await res.json();
+        // Kies "Marketing Information" als die bestaat, anders de eerste
+        const marketing = data.subscriptionDefinitions?.find(s =>
+          s.name.toLowerCase().includes('marketing')
+        );
+        cachedSubscriptionId = (marketing || data.subscriptionDefinitions?.[0])?.id || null;
+        console.log(`✓ HubSpot subscription ID gecached: ${cachedSubscriptionId}`);
+      } catch (err) {
+        console.error('Subscription ID ophalen mislukt:', err.message);
+      }
+      return cachedSubscriptionId;
+    }
+
+    // ── HubSpot helpers ────────────────────────────────
+
+    async function updateHubSpotContact(contactId, properties) {
+      if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN || !contactId) return null;
+      try {
+        const res  = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
           method:  'PATCH',
           headers: {
             'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
@@ -97,15 +123,20 @@ if (process.env.MOLLIE_API_KEY) {
           },
           body: JSON.stringify({ properties }),
         });
+        const data = await res.json();
+        if (!res.ok) console.error('HubSpot contact updaten mislukt:', data);
+        else console.log(`✓ HubSpot contact ${contactId} bijgewerkt`);
+        return data;
       } catch (err) {
         console.error('HubSpot update error:', err.message);
+        return null;
       }
     }
 
     async function createHubSpotContact(properties) {
       if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN) return null;
       try {
-        const res = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
+        const res  = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
           method:  'POST',
           headers: {
             'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
@@ -121,63 +152,38 @@ if (process.env.MOLLIE_API_KEY) {
         return null;
       }
     }
-async function updateHubSpotContact(contactId, properties) {
-  if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN || !contactId) return null;
-  try {
-    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
-      method:  'PATCH',
-      headers: {
-        'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({ properties }),
-    });
-    const data = await res.json();
-    if (!res.ok) console.error('HubSpot contact updaten mislukt:', data);
-    else console.log(`✓ HubSpot contact ${contactId} bijgewerkt`);
-    return data;
-  } catch (err) {
-    console.error('HubSpot update error:', err.message);
-    return null;
-  }
-}
 
-async function setSoftOptIn(email) {
-  if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN || !email) return;
-  try {
-    // Haal subscription types op
-    const typesRes = await fetch('https://api.hubapi.com/communication-preferences/v3/definitions', {
-      headers: { 'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}` },
-    });
-    const typesData = await typesRes.json();
-    const subscriptionId = typesData.subscriptionDefinitions?.[0]?.id;
-    if (!subscriptionId) {
-      console.error('Geen subscription type gevonden');
-      return;
+    async function setSoftOptIn(email) {
+      if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN || !email) return;
+      try {
+        const subscriptionId = await getSubscriptionId();
+        if (!subscriptionId) {
+          console.error('Soft Opt-in overgeslagen — geen subscription ID beschikbaar');
+          return;
+        }
+        const res = await fetch('https://api.hubapi.com/communication-preferences/v3/subscribe', {
+          method:  'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
+            'Content-Type':  'application/json',
+          },
+          body: JSON.stringify({
+            emailAddress:          email,
+            subscriptionId:        subscriptionId,
+            legalBasis:            'LEGITIMATE_INTEREST_CLIENT',
+            legalBasisExplanation: 'Cursist heeft betaald voor een TM-cursus',
+          }),
+        });
+        if (res.ok) console.log(`✓ Soft Opt-in ingesteld voor: ${email}`);
+        else {
+          const errData = await res.json();
+          console.error('Soft Opt-in mislukt:', errData);
+        }
+      } catch (err) {
+        console.error('setSoftOptIn error:', err.message);
+      }
     }
 
-    const res = await fetch('https://api.hubapi.com/communication-preferences/v3/subscribe', {
-      method:  'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({
-        emailAddress:          email,
-        subscriptionId:        subscriptionId,
-        legalBasis:            'LEGITIMATE_INTEREST_CLIENT',
-        legalBasisExplanation: 'Cursist heeft betaald voor een TM-cursus',
-      }),
-    });
-    if (res.ok) console.log(`✓ Soft Opt-in ingesteld voor: ${email}`);
-    else {
-      const err = await res.json();
-      console.error('Soft Opt-in mislukt:', err);
-    }
-  } catch (err) {
-    console.error('setSoftOptIn error:', err.message);
-  }
-}
     // ── Mollie: betaling aanmaken ──────────────────────
     app.post('/mollie/betaling/create', jsonParser, async (req, res) => {
       try {
@@ -196,6 +202,7 @@ async function setSoftOptIn(email) {
         }
 
         let checkoutUrl;
+
         if (methode === 'in3') {
           const totaal = parseFloat(bedrag);
           const btw    = +(totaal - totaal / 1.21).toFixed(2);
@@ -207,16 +214,22 @@ async function setSoftOptIn(email) {
             redirectUrl: `${process.env.SITE_URL}/bedankt`,
             webhookUrl:  `${process.env.RAILWAY_URL}/mollie/webhook`,
             billingAddress: {
-              givenName: voornaam.trim(), familyName: achternaam.trim(),
-              email: email.trim(), phone: telefoon?.trim() || '+31000000000',
-              streetAndNumber: `${straat.trim()} ${huisnummer.trim()}`,
-              postalCode: postcode.trim(), city: stad.trim(), country: 'NL',
+              givenName:        voornaam.trim(),
+              familyName:       achternaam.trim(),
+              email:            email.trim(),
+              phone:            telefoon?.trim() || '+31000000000',
+              streetAndNumber:  `${straat.trim()} ${huisnummer.trim()}`,
+              postalCode:       postcode.trim(),
+              city:             stad.trim(),
+              country:          'NL',
             },
             lines: [{
-              name: cursusnaam || 'TM Cursus', quantity: 1,
+              name:        cursusnaam || 'TM Cursus',
+              quantity:    1,
               unitPrice:   { currency: 'EUR', value: totaal.toFixed(2) },
               totalAmount: { currency: 'EUR', value: totaal.toFixed(2) },
-              vatRate: '21.00', vatAmount: { currency: 'EUR', value: btw.toFixed(2) },
+              vatRate:     '21.00',
+              vatAmount:   { currency: 'EUR', value: btw.toFixed(2) },
             }],
             metadata: {
               type: 'in3_order', hubspot_contact_id, centrum, cursusnaam, tarief,
@@ -227,6 +240,7 @@ async function setSoftOptIn(email) {
             },
           });
           checkoutUrl = order._links.checkout.href;
+
         } else {
           const payment = await mollie.payments.create({
             amount:      { currency: 'EUR', value: parseFloat(bedrag).toFixed(2) },
@@ -244,7 +258,9 @@ async function setSoftOptIn(email) {
           });
           checkoutUrl = payment._links.checkout.href;
         }
+
         res.json({ checkoutUrl });
+
       } catch (err) {
         console.error('Mollie create error:', err.message, err.stack);
         res.status(500).json({ error: 'Betaling kon niet worden aangemaakt.' });
@@ -264,8 +280,8 @@ async function setSoftOptIn(email) {
         }
 
         const VASTE_KEYS = new Set([
-          'type','hubspot_contact_id','centrum','cursusnaam','tarief',
-          'naam','email','bedrag_incl','bedrag_excl',
+          'type', 'hubspot_contact_id', 'centrum', 'cursusnaam', 'tarief',
+          'naam', 'email', 'bedrag_incl', 'bedrag_excl',
         ]);
 
         let meta, naam, email, telefoon = '', methode, contactId, centrum;
@@ -293,26 +309,26 @@ async function setSoftOptIn(email) {
           Object.entries(meta).filter(([k]) => !VASTE_KEYS.has(k))
         );
 
-       // ── HubSpot: hoofdcontact updaten ──────────────
-await updateHubSpotContact(contactId, {
-  cursusbedrag_betaald: meta.bedrag_incl,
-  initiatie_datum:      new Date().toISOString().split('T')[0],
-  betaalmethode:        methode,
-  centrum_boekhouding:  centrum,
-  tm_status:            'Meditator',
-});
+        // ── HubSpot: hoofdcontact updaten ──────────────
+        await updateHubSpotContact(contactId, {
+          cursusbedrag_betaald: meta.bedrag_incl,
+          initiatie_datum:      new Date().toISOString().split('T')[0],
+          betaalmethode:        methode,
+          centrum_boekhouding:  centrum,
+          tm_status:            'Meditator',
+        });
 
-// ── HubSpot: Soft Opt-in instellen ─────────────
-await setSoftOptIn(email);
+        // ── HubSpot: Soft Opt-in instellen ─────────────
+        await setSoftOptIn(email);
 
         // ── HubSpot: partner contact aanmaken ──────────
         const isPartner = meta.tarief && meta.tarief.includes('partner');
         if (isPartner && extraData.partner_email) {
           await createHubSpotContact({
-            firstname:     extraData.partner_voornaam       || '',
-            lastname:      extraData.partner_achternaam     || '',
-            email:         extraData.partner_email,
-            date_of_birth: extraData.partner_geboortedatum  || '',
+            firstname:            extraData.partner_voornaam      || '',
+            lastname:             extraData.partner_achternaam    || '',
+            email:                extraData.partner_email,
+            date_of_birth:        extraData.partner_geboortedatum || '',
             cursusbedrag_betaald: meta.bedrag_incl,
             initiatie_datum:      new Date().toISOString().split('T')[0],
             centrum_boekhouding:  centrum,
@@ -339,12 +355,14 @@ await setSoftOptIn(email);
         });
 
         console.log(`✓ Mollie ${id} (${methode}) verwerkt`);
+
       } catch (err) {
         console.error('Mollie webhook fout:', err.message, err.stack);
       }
     });
 
     console.log('✓ Mollie routes geregistreerd');
+
   } catch (err) {
     console.error('⚠ Mollie initialisatie gefaald:', err.message);
   }
