@@ -121,7 +121,63 @@ if (process.env.MOLLIE_API_KEY) {
         return null;
       }
     }
+async function updateHubSpotContact(contactId, properties) {
+  if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN || !contactId) return null;
+  try {
+    const res = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
+      method:  'PATCH',
+      headers: {
+        'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify({ properties }),
+    });
+    const data = await res.json();
+    if (!res.ok) console.error('HubSpot contact updaten mislukt:', data);
+    else console.log(`✓ HubSpot contact ${contactId} bijgewerkt`);
+    return data;
+  } catch (err) {
+    console.error('HubSpot update error:', err.message);
+    return null;
+  }
+}
 
+async function setSoftOptIn(email) {
+  if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN || !email) return;
+  try {
+    // Haal subscription types op
+    const typesRes = await fetch('https://api.hubapi.com/communication-preferences/v3/definitions', {
+      headers: { 'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}` },
+    });
+    const typesData = await typesRes.json();
+    const subscriptionId = typesData.subscriptionDefinitions?.[0]?.id;
+    if (!subscriptionId) {
+      console.error('Geen subscription type gevonden');
+      return;
+    }
+
+    const res = await fetch('https://api.hubapi.com/communication-preferences/v3/subscribe', {
+      method:  'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify({
+        emailAddress:          email,
+        subscriptionId:        subscriptionId,
+        legalBasis:            'LEGITIMATE_INTEREST_CLIENT',
+        legalBasisExplanation: 'Cursist heeft betaald voor een TM-cursus',
+      }),
+    });
+    if (res.ok) console.log(`✓ Soft Opt-in ingesteld voor: ${email}`);
+    else {
+      const err = await res.json();
+      console.error('Soft Opt-in mislukt:', err);
+    }
+  } catch (err) {
+    console.error('setSoftOptIn error:', err.message);
+  }
+}
     // ── Mollie: betaling aanmaken ──────────────────────
     app.post('/mollie/betaling/create', jsonParser, async (req, res) => {
       try {
@@ -237,15 +293,17 @@ if (process.env.MOLLIE_API_KEY) {
           Object.entries(meta).filter(([k]) => !VASTE_KEYS.has(k))
         );
 
-        // ── HubSpot: hoofdcontact updaten ──────────────
-        await updateHubSpotContact(contactId, {
-          cursusbedrag_betaald:       meta.bedrag_incl,
-          initiatie_datum:            new Date().toISOString().split('T')[0],
-          betaalmethode:              methode,
-          centrum_boekhouding:        centrum,
-          tm_status:                  'Meditator',
-          global_subscription_status: 'Soft Opt-In',
-        });
+       // ── HubSpot: hoofdcontact updaten ──────────────
+await updateHubSpotContact(contactId, {
+  cursusbedrag_betaald: meta.bedrag_incl,
+  initiatie_datum:      new Date().toISOString().split('T')[0],
+  betaalmethode:        methode,
+  centrum_boekhouding:  centrum,
+  tm_status:            'Meditator',
+});
+
+// ── HubSpot: Soft Opt-in instellen ─────────────
+await setSoftOptIn(email);
 
         // ── HubSpot: partner contact aanmaken ──────────
         const isPartner = meta.tarief && meta.tarief.includes('partner');
