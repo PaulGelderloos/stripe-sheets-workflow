@@ -309,14 +309,12 @@ if (process.env.MOLLIE_API_KEY) {
           Object.entries(meta).filter(([k]) => !VASTE_KEYS.has(k))
         );
 
-        // ── HubSpot: hoofdcontact updaten ──────────────
-        await updateHubSpotContact(contactId, {
-          cursusbedrag_betaald: meta.bedrag_incl,
-          initiatie_datum:      new Date().toISOString().split('T')[0],
-          betaalmethode:        methode,
-          centrum_boekhouding:  centrum,
-          tm_status:            'Meditator',
-        });
+       // ── HubSpot: hoofdcontact updaten ──────────────
+await updateHubSpotContact(contactId, {
+  cursusbedrag_betaald: parseFloat(meta.bedrag_incl),
+  initiatie_datum:      new Date().toISOString().split('T')[0],
+  tm_status:            'Meditator',
+});
 
         // ── HubSpot: Soft Opt-in instellen ─────────────
         await setSoftOptIn(email);
