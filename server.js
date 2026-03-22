@@ -1,4 +1,4 @@
-// v10 - E-mail via Google Apps Script relay (vervangt SMTP)
+// v11 - Cleanup diagnostische logging
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
 });
@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v10" });
+  res.json({ status: "ok", version: "v11" });
 });
 
 // ── E-mail via Apps Script relay ───────────────────────
@@ -160,8 +160,10 @@ if (process.env.MOLLIE_API_KEY) {
           }),
         });
         const data = await res.json();
-        console.log(`HubSpot search status: ${res.status}, results: ${data.results?.length ?? 0}`, res.ok ? "" : JSON.stringify(data));
-        if (!res.ok || !data.results?.length) return null;
+        if (!res.ok || !data.results?.length) {
+          if (!res.ok) console.error("HubSpot search mislukt:", res.status, JSON.stringify(data));
+          return null;
+        }
         const c = data.results[0];
         console.log(`✓ HubSpot contact gevonden via e-mail: ${email} → ${c.id}`);
         return { id: c.id, properties: c.properties };
@@ -234,7 +236,14 @@ if (process.env.MOLLIE_API_KEY) {
           }),
         });
         if (res.ok) console.log(`✓ Soft Opt-in ingesteld: ${email}`);
-        else console.error("Soft Opt-in mislukt:", await res.json());
+        else {
+          const err = await res.json();
+          if (err.category === "VALIDATION_ERROR" && err.message?.includes("already subscribed")) {
+            console.log(`✓ Soft Opt-in: ${email} was al ingeschreven`);
+          } else {
+            console.error("Soft Opt-in mislukt:", err);
+          }
+        }
       } catch (err) {
         console.error("setSoftOptIn error:", err.message);
       }
@@ -551,7 +560,6 @@ if (process.env.MOLLIE_API_KEY) {
 
         contactId = meta.hubspot_contact_id;
         centrum   = meta.centrum;
-        console.log(`Webhook ${id}: contactId="${contactId}", email="${email}", centrum="${centrum}"`);
         const extraData = Object.fromEntries(
           Object.entries(meta).filter(([k]) => !VASTE_KEYS.has(k))
         );
