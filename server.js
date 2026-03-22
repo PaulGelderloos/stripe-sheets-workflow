@@ -1,4 +1,4 @@
-// v6 - Bevestigingsmails + leraar notificaties + bug fixes
+// v7 - Fallback: HubSpot contact zoeken via e-mail als contactId ontbreekt
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
 });
@@ -16,7 +16,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v6" });
+  res.json({ status: "ok", version: "v7" });
 });
 
 // ── E-mail transporter ─────────────────────────────────
@@ -120,23 +120,50 @@ if (process.env.MOLLIE_API_KEY) {
 
     // ── HubSpot helpers ────────────────────────────────
 
+    const CONTACT_PROPS = [
+      "leraar_email", "voornaam_leraar", "centrum_naam",
+      "cursus_tijdslot", "plaats_instructie", "initiatie_datum",
+      "taal_nlen", "firstname", "lastname", "phone",
+    ].join(",");
+
     async function getHubSpotContact(contactId) {
       if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN || !contactId) return null;
       try {
-        const props = [
-          "leraar_email", "voornaam_leraar", "centrum_naam",
-          "cursus_tijdslot", "plaats_instructie", "initiatie_datum",
-          "taal_nlen", "firstname", "lastname", "phone",
-        ].join(",");
         const res  = await fetch(
-          `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?properties=${props}`,
+          `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?properties=${CONTACT_PROPS}`,
           { headers: { Authorization: `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}` } }
         );
         const data = await res.json();
         if (!res.ok) { console.error("HubSpot contact ophalen mislukt:", data); return null; }
-        return data.properties;
+        return { id: contactId, properties: data.properties };
       } catch (err) {
         console.error("getHubSpotContact error:", err.message);
+        return null;
+      }
+    }
+
+    async function getHubSpotContactByEmail(email) {
+      if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN || !email) return null;
+      try {
+        const res  = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+          method:  "POST",
+          headers: {
+            Authorization:  `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            filterGroups: [{ filters: [{ propertyName: "email", operator: "EQ", value: email }] }],
+            properties: CONTACT_PROPS.split(","),
+            limit: 1,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.results?.length) return null;
+        const c = data.results[0];
+        console.log(`✓ HubSpot contact gevonden via e-mail: ${email} → ${c.id}`);
+        return { id: c.id, properties: c.properties };
+      } catch (err) {
+        console.error("getHubSpotContactByEmail error:", err.message);
         return null;
       }
     }
@@ -527,14 +554,25 @@ if (process.env.MOLLIE_API_KEY) {
         );
 
         // ── HubSpot contact ophalen (voor leraar + cursusdata) ──
-        const contact       = await getHubSpotContact(contactId);
-        const leraarEmail   = contact?.leraar_email      || "";
-        const voornaamLeraar = contact?.voornaam_leraar  || "";
-        const initiatieDatum = contact?.initiatie_datum  || "";
-        const tijdslot      = contact?.cursus_tijdslot   || "";
-        const locatie       = contact?.plaats_instructie || "";
-        const taal          = contact?.taal_nlen         || "NL";
-        const telefoonFinal = contact?.phone             || telefoon;
+        // Fallback: zoek op e-mail als contactId ontbreekt (bijv. directe form-gebruikers)
+        let hubContact = contactId
+          ? await getHubSpotContact(contactId)
+          : await getHubSpotContactByEmail(email);
+        if (!hubContact && email) {
+          hubContact = await getHubSpotContactByEmail(email);
+        }
+        if (hubContact && !contactId) {
+          contactId = hubContact.id;
+          console.log(`✓ contactId hersteld via e-mail: ${contactId}`);
+        }
+        const contact        = hubContact?.properties;
+        const leraarEmail    = contact?.leraar_email      || "";
+        const voornaamLeraar = contact?.voornaam_leraar   || "";
+        const initiatieDatum = contact?.initiatie_datum   || "";
+        const tijdslot       = contact?.cursus_tijdslot   || "";
+        const locatie        = contact?.plaats_instructie || "";
+        const taal           = contact?.taal_nlen         || "NL";
+        const telefoonFinal  = contact?.phone             || telefoon;
 
         // ── HubSpot: contact updaten ────────────────────────────
         // initiatie_datum wordt NIET overschreven — staat al correct via het formulier
