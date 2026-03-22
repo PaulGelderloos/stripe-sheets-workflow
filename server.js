@@ -48,8 +48,7 @@ if (process.env.STRIPE_SECRET_KEY) {
       console.log(`Stripe event: ${event.type}`);
 
       if (event.type === "checkout.session.completed") {
-        const session       = event.data.object;
-        const paymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent);
+        const session = event.data.object;
 
         const customFields = {};
         if (session.custom_fields) {
@@ -64,15 +63,22 @@ if (process.env.STRIPE_SECRET_KEY) {
           });
         }
 
-        paymentIntent.metadata = {
-          ...paymentIntent.metadata,
-          ...session.metadata,
-          ...customFields,
-          email: session.customer_details?.email || paymentIntent.metadata?.email,
-          name:  session.customer_details?.name  || paymentIntent.metadata?.name,
+        const paymentData = {
+          id:                   session.payment_intent,
+          status:               session.payment_status,
+          amount:               session.amount_total,
+          currency:             session.currency,
+          created:              session.created,
+          payment_method_types: session.payment_method_types || [],
+          metadata: {
+            ...session.metadata,
+            ...customFields,
+            email: session.customer_details?.email || session.metadata?.email,
+            name:  session.customer_details?.name  || session.metadata?.name,
+          },
         };
 
-        await syncToGoogleSheets(paymentIntent);
+        await syncToGoogleSheets(paymentData);
         console.log(`Stripe betaling verwerkt`);
       }
 
