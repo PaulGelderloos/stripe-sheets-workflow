@@ -1,4 +1,4 @@
-// v8 - Fix: HubSpot EU endpoint (api-eu1.hubapi.com)
+// v9 - Diagnose logging HubSpot lookup
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
 });
@@ -16,7 +16,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v8" });
+  res.json({ status: "ok", version: "v9" });
 });
 
 // ── E-mail transporter ─────────────────────────────────
@@ -158,6 +158,7 @@ if (process.env.MOLLIE_API_KEY) {
           }),
         });
         const data = await res.json();
+        console.log(`HubSpot search status: ${res.status}, results: ${data.results?.length ?? 0}`, res.ok ? "" : JSON.stringify(data));
         if (!res.ok || !data.results?.length) return null;
         const c = data.results[0];
         console.log(`✓ HubSpot contact gevonden via e-mail: ${email} → ${c.id}`);
@@ -549,6 +550,7 @@ if (process.env.MOLLIE_API_KEY) {
 
         contactId = meta.hubspot_contact_id;
         centrum   = meta.centrum;
+        console.log(`Webhook ${id}: contactId="${contactId}", email="${email}", centrum="${centrum}"`);
         const extraData = Object.fromEntries(
           Object.entries(meta).filter(([k]) => !VASTE_KEYS.has(k))
         );
