@@ -18,11 +18,14 @@ async function syncToGoogleSheets(paymentIntent) {
     range: `'${sheetName}'!1:1`,
   });
   const headers = headerRes.data.values?.[0] || [];
-  console.log('Headers gelezen:', JSON.stringify(headers));
-  console.log('RowData gemaakt:', JSON.stringify(rowData));
+
+  // rowData declareren vóór het loggen (bug fix: was andersom)
   const rowData = isMollie
     ? mapMollieToColumns(paymentIntent, headers)
     : mapPaymentToColumns(paymentIntent, headers);
+
+  console.log('Headers gelezen:', JSON.stringify(headers));
+  console.log('RowData gemaakt:', JSON.stringify(rowData));
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: process.env.GOOGLE_SHEET_ID,
@@ -52,7 +55,6 @@ function mapPaymentToColumns(payment, headers) {
     "Aangemaakt":           new Date(payment.created * 1000).toLocaleString("nl-NL"),
     "Cursusdatum":          payment.metadata?.cursusdatum || "",
   };
-  
   return headers.map((header) => fieldMap[header.trim()] || "");
 }
 
@@ -75,7 +77,6 @@ function mapMollieToColumns(payment, headers) {
     "Tarief":               m.tarief           || "",
     "Aangemaakt":           m.datum            || new Date().toLocaleString("nl-NL"),
     "Cursusdatum":          m.cursusdatum      || "",
-    // Partnervelden
     "Partner naam":         m.partner_voornaam && m.partner_achternaam
                               ? `${m.partner_voornaam} ${m.partner_achternaam}` : "",
     "Partner e-mail":       m.partner_email    || "",
