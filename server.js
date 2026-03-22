@@ -1,4 +1,4 @@
-// v11 - Cleanup diagnostische logging
+// v12 - Vermijd stripe.paymentIntents.retrieve() API call
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
 });
@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v11" });
+  res.json({ status: "ok", version: "v12" });
 });
 
 // ── E-mail via Apps Script relay ───────────────────────
