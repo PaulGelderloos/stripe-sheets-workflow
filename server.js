@@ -1,4 +1,4 @@
-// v7 - Fallback: HubSpot contact zoeken via e-mail als contactId ontbreekt
+// v8 - Fix: HubSpot EU endpoint (api-eu1.hubapi.com)
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
 });
@@ -16,7 +16,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v7" });
+  res.json({ status: "ok", version: "v8" });
 });
 
 // ── E-mail transporter ─────────────────────────────────
@@ -103,7 +103,7 @@ if (process.env.MOLLIE_API_KEY) {
     async function getSubscriptionId() {
       if (cachedSubscriptionId) return cachedSubscriptionId;
       try {
-        const res  = await fetch("https://api.hubapi.com/communication-preferences/v3/definitions", {
+        const res  = await fetch("https://api-eu1.hubapi.com/communication-preferences/v3/definitions", {
           headers: { Authorization: `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}` },
         });
         const data = await res.json();
@@ -130,7 +130,7 @@ if (process.env.MOLLIE_API_KEY) {
       if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN || !contactId) return null;
       try {
         const res  = await fetch(
-          `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?properties=${CONTACT_PROPS}`,
+          `https://api-eu1.hubapi.com/crm/v3/objects/contacts/${contactId}?properties=${CONTACT_PROPS}`,
           { headers: { Authorization: `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}` } }
         );
         const data = await res.json();
@@ -145,7 +145,7 @@ if (process.env.MOLLIE_API_KEY) {
     async function getHubSpotContactByEmail(email) {
       if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN || !email) return null;
       try {
-        const res  = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+        const res  = await fetch("https://api-eu1.hubapi.com/crm/v3/objects/contacts/search", {
           method:  "POST",
           headers: {
             Authorization:  `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
@@ -171,7 +171,7 @@ if (process.env.MOLLIE_API_KEY) {
     async function updateHubSpotContact(contactId, properties) {
       if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN || !contactId) return null;
       try {
-        const res  = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
+        const res  = await fetch(`https://api-eu1.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
           method:  "PATCH",
           headers: {
             Authorization:  `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
@@ -192,7 +192,7 @@ if (process.env.MOLLIE_API_KEY) {
     async function createHubSpotContact(properties) {
       if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN) return null;
       try {
-        const res  = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
+        const res  = await fetch("https://api-eu1.hubapi.com/crm/v3/objects/contacts", {
           method:  "POST",
           headers: {
             Authorization:  `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
@@ -217,7 +217,7 @@ if (process.env.MOLLIE_API_KEY) {
           console.error("Soft Opt-in overgeslagen — geen subscription ID");
           return;
         }
-        const res = await fetch("https://api.hubapi.com/communication-preferences/v3/subscribe", {
+        const res = await fetch("https://api-eu1.hubapi.com/communication-preferences/v3/subscribe", {
           method:  "POST",
           headers: {
             Authorization:  `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
