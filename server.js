@@ -582,6 +582,30 @@ if (process.env.MOLLIE_API_KEY) {
           contactId = hubContact.id;
           console.log(`✓ contactId hersteld via e-mail: ${contactId}`);
         }
+        // Geen bestaand contact gevonden: maak nieuw aan
+        if (!hubContact && email) {
+          const naamDelen = (naam || "").trim().split(/\s+/);
+          const newContact = await createHubSpotContact({
+            firstname:           naamDelen[0] || "",
+            lastname:            naamDelen.slice(1).join(" ") || "",
+            email,
+            phone:               telefoon || "",
+            centrum_boekhouding: centrum  || "",
+          });
+          if (newContact?.id) {
+            contactId  = newContact.id;
+            hubContact = { id: contactId, properties: {} };
+            console.log(`✓ Nieuw HubSpot contact aangemaakt: ${email} → ${contactId}`);
+          } else if (newContact?.error === "CONTACT_EXISTS") {
+            // Contact bestaat maar was nog niet geïndexeerd voor e-mailzoekactie (race condition)
+            const match = newContact.message?.match(/Existing ID:\s*(\d+)/);
+            if (match) {
+              contactId  = match[1];
+              hubContact = await getHubSpotContact(contactId) || { id: contactId, properties: {} };
+              console.log(`✓ Bestaand contact hersteld via CONTACT_EXISTS: ${email} → ${contactId}`);
+            }
+          }
+        }
         const contact        = hubContact?.properties;
         const leraarEmail    = contact?.leraar_email      || "";
         const voornaamLeraar = contact?.voornaam_leraar   || "";
@@ -651,7 +675,7 @@ if (process.env.MOLLIE_API_KEY) {
 
         // ── Notificatie aan leraar ──────────────────────────────
         await stuurLeraarsNotificatie({
-          leraarEmail,
+          leraarEmail: leraarEmail || "nationaal@transcendentemeditatie.com",
           voornaamLeraar,
           cursistNaam:     naam,
           cursistEmail:    email,
