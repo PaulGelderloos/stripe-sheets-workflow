@@ -1,4 +1,4 @@
-// v12 - Vermijd stripe.paymentIntents.retrieve() API call
+// v13 - Fix phone E.164 formatting for In3 orders
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
 });
@@ -472,6 +472,18 @@ if (process.env.MOLLIE_API_KEY) {
         if (methode === "in3") {
           const totaal = parseFloat(bedrag);
           const btw    = +(totaal - totaal / 1.21).toFixed(2);
+
+          // Convert Dutch phone number to E.164 format
+          const toE164 = (num) => {
+            if (!num) return null;
+            const cleaned = num.replace(/[\s\-().]/g, "");
+            if (cleaned.startsWith("+")) return cleaned;
+            if (cleaned.startsWith("00")) return "+" + cleaned.slice(2);
+            if (cleaned.startsWith("0")) return "+31" + cleaned.slice(1);
+            return null;
+          };
+          const phoneE164 = toE164(telefoon);
+
           const order  = await mollie.orders.create({
             orderNumber: `TM-${Date.now()}`,
             locale:      "nl_NL",
@@ -483,7 +495,7 @@ if (process.env.MOLLIE_API_KEY) {
               givenName:       voornaam.trim(),
               familyName:      achternaam.trim(),
               email:           email.trim(),
-              phone:           telefoon?.trim() || "+31000000000",
+              ...(phoneE164 && { phone: phoneE164 }),
               streetAndNumber: `${straat.trim()} ${huisnummer.trim()}`,
               postalCode:      postcode.trim(),
               city:            stad.trim(),
