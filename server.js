@@ -457,6 +457,7 @@ if (process.env.MOLLIE_API_KEY) {
           methode, voornaam, achternaam, email, telefoon,
           straat, huisnummer, postcode, stad,
           bedrag, cursusnaam, hubspot_contact_id, centrum, tarief,
+          cursusdatum, plaats,
           extraData = {},
         } = req.body;
 
@@ -514,6 +515,8 @@ if (process.env.MOLLIE_API_KEY) {
               naam: `${voornaam} ${achternaam}`, email,
               bedrag_incl: totaal.toFixed(2),
               bedrag_excl: (totaal / 1.21).toFixed(2),
+              ...(cursusdatum && { cursusdatum }),
+              ...(plaats && { plaats }),
               ...extraData,
             },
           });
@@ -531,6 +534,8 @@ if (process.env.MOLLIE_API_KEY) {
               naam: `${voornaam} ${achternaam}`, email,
               bedrag_incl: parseFloat(bedrag).toFixed(2),
               bedrag_excl: (parseFloat(bedrag) / 1.21).toFixed(2),
+              ...(cursusdatum && { cursusdatum }),
+              ...(plaats && { plaats }),
               ...extraData,
             },
           });
