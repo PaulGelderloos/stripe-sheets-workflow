@@ -62,6 +62,7 @@ if (process.env.STRIPE_SECRET_KEY) {
             }
           });
         }
+        console.log("Stripe custom_fields keys:", JSON.stringify(customFields));
 
         const paymentData = {
           id:                   session.payment_intent,
