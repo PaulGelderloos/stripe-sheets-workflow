@@ -18,24 +18,30 @@ async function syncToGoogleSheets(paymentIntent) {
     range: `'${sheetName}'!1:1`,
   });
   const headers = headerRes.data.values?.[0] || [];
+  console.log('Headers gelezen:', JSON.stringify(headers));
 
-  // rowData declareren vóór het loggen (bug fix: was andersom)
   const rowData = isMollie
     ? mapMollieToColumns(paymentIntent, headers)
     : mapPaymentToColumns(paymentIntent, headers);
-
-  console.log('Headers gelezen:', JSON.stringify(headers));
   console.log('RowData gemaakt:', JSON.stringify(rowData));
 
-  await sheets.spreadsheets.values.append({
+  // Determine next empty row explicitly via column A to avoid
+  // Google's table-detection placing data in the wrong column
+  const colARes = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.GOOGLE_SHEET_ID,
-    range: `'${sheetName}'!A:Z`,
+    range: `'${sheetName}'!A:A`,
+  });
+  const nextRow = (colARes.data.values?.length || 0) + 1;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: process.env.GOOGLE_SHEET_ID,
+    range: `'${sheetName}'!A${nextRow}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [rowData] },
   });
 
   const ref = isMollie ? paymentIntent.metadata.referentie : paymentIntent.id;
-  console.log(`Betaling ${ref} toegevoegd aan sheet '${sheetName}'`);
+  console.log(`Betaling ${ref} toegevoegd aan '${sheetName}' rij ${nextRow}`);
 }
 
 // ── Stripe ────────────────────────────────────────────
@@ -55,6 +61,7 @@ function mapPaymentToColumns(payment, headers) {
     "Aangemaakt":           new Date(payment.created * 1000).toLocaleString("nl-NL"),
     "Cursusdatum":          payment.metadata?.cursusdatum || "",
   };
+  
   return headers.map((header) => fieldMap[header.trim()] || "");
 }
 
@@ -77,6 +84,7 @@ function mapMollieToColumns(payment, headers) {
     "Tarief":               m.tarief           || "",
     "Aangemaakt":           m.datum            || new Date().toLocaleString("nl-NL"),
     "Cursusdatum":          m.cursusdatum      || "",
+    // Partnervelden
     "Partner naam":         m.partner_voornaam && m.partner_achternaam
                               ? `${m.partner_voornaam} ${m.partner_achternaam}` : "",
     "Partner e-mail":       m.partner_email    || "",
