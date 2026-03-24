@@ -671,6 +671,8 @@ if (process.env.MOLLIE_API_KEY) {
             referentie: id,
             tarief:     meta.tarief || "",
             datum:      new Date().toLocaleDateString("nl-NL"),
+            cursusdatum: initiatieDatum,
+            plaats:      locatie,
             ...extraData,
           },
         });
