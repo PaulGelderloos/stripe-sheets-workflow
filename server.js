@@ -552,7 +552,7 @@ if (process.env.MOLLIE_API_KEY) {
     });
 
     // ── Mollie: webhook ────────────────────────────────
-    app.post("/mollie/webhook", jsonParser, async (req, res) => {
+    app.post("/mollie/webhook", express.urlencoded({ extended: false }), async (req, res) => {
       res.sendStatus(200);
       const { id } = req.body;
       if (!id) return;
