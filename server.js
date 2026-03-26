@@ -17,7 +17,7 @@ app.use(cors());
 app.get("/", (req, res) => {
   res.json({ status: "ok", version: "v12" });
 });
-Nieuw (SMTP via nodemailer):
+ 
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
