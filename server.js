@@ -686,6 +686,41 @@ if (process.env.MOLLIE_API_KEY) {
           },
         });
 
+        // ── Aanmeldingen sheet (Apps Script relay) ────────────────
+        if (process.env.APPS_SCRIPT_URL) {
+          try {
+            const naamDelen = (naam || "").trim().split(/\s+/);
+            const relayRes = await fetch(process.env.APPS_SCRIPT_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action:              "write_aanmelding",
+                voornaam:            naamDelen[0] || "",
+                achternaam:          naamDelen.slice(1).join(" ") || "",
+                email,
+                telefoon:            telefoonFinal || "",
+                centrum_naam:        centrum || "",
+                initiatie_datum:     initiatieDatum || "",
+                cursus_tijdslot:     tijdslot || "",
+                plaats_instructie:   locatie || "",
+                cursus_type:         meta.cursusnaam || "",
+                leraar_email:        leraarEmail || "",
+                voornaam_leraar:     voornaamLeraar || "",
+                taal_nlen:           taal || "NL",
+                cursusbedrag_betaald: meta.bedrag_incl || "",
+              }),
+            });
+            const relayResult = await relayRes.json();
+            if (relayResult.status === "ok") {
+              console.log("✓ Aanmelding geschreven naar Aanmeldingen sheet via relay");
+            } else {
+              console.error("Aanmeldingen relay mislukt:", relayResult);
+            }
+          } catch (relayErr) {
+            console.error("Aanmeldingen relay fout (niet-blokkerend):", relayErr.message);
+          }
+        }
+
         // ── Bevestigingsmail aan cursist ────────────────────────
         await stuurBevestigingCursist({
           naam,
