@@ -18,26 +18,22 @@ app.get("/", (req, res) => {
   res.json({ status: "ok", version: "v12" });
 });
  
-const nodemailer = require("nodemailer");
-
-const transporter = nodemailer.createTransport({
-  host:   process.env.SMTP_HOST,
-  port:   parseInt(process.env.SMTP_Port) || 587,
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
 async function sendMail({ to, subject, html }) {
-  await transporter.sendMail({
-    from: process.env.SMTP_USER,
-    to,
-    subject,
-    html,
+  if (!process.env.APPS_SCRIPT_URL) {
+    console.error("E-mail niet verstuurd: APPS_SCRIPT_URL niet ingesteld");
+    return;
+  }
+  const res = await fetch(process.env.APPS_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "send_email", to, subject, html }),
   });
-  console.log(`✓ E-mail verstuurd via SMTP naar: ${to}`);
+  const result = await res.json();
+  if (result.status === "ok") {
+    console.log(`✓ E-mail verstuurd via Apps Script relay naar: ${to}`);
+  } else {
+    console.error("E-mail relay mislukt:", JSON.stringify(result));
+  }
 }
 
 

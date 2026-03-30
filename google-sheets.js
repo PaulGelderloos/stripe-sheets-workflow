@@ -18,12 +18,12 @@ async function syncToGoogleSheets(paymentIntent) {
     range: `'${sheetName}'!1:1`,
   });
   const headers = headerRes.data.values?.[0] || [];
-  console.log('Headers gelezen:', JSON.stringify(headers));
+  console.log("Headers gelezen:", JSON.stringify(headers));
 
   const rowData = isMollie
     ? mapMollieToColumns(paymentIntent, headers)
     : mapPaymentToColumns(paymentIntent, headers);
-  console.log('RowData gemaakt:', JSON.stringify(rowData));
+  console.log("RowData gemaakt:", JSON.stringify(rowData));
 
   // Determine next empty row explicitly via column A to avoid
   // Google's table-detection placing data in the wrong column
@@ -44,52 +44,60 @@ async function syncToGoogleSheets(paymentIntent) {
   console.log(`Betaling ${ref} toegevoegd aan '${sheetName}' rij ${nextRow}`);
 }
 
+// Case-insensitive header matching helper
+function mapToRow(fieldMap, headers) {
+  const lowerMap = {};
+  for (const [key, value] of Object.entries(fieldMap)) {
+    lowerMap[key.toLowerCase().trim()] = value;
+  }
+  return headers.map((header) => lowerMap[header.toLowerCase().trim()] ?? "");
+}
+
 // ── Stripe ────────────────────────────────────────────
 function mapPaymentToColumns(payment, headers) {
   const fieldMap = {
-    "Payment ID":           payment.id,
-    "Status":               payment.status,
-    "Naam cursus":          payment.metadata?.sheet_name || "",
-    "Bedrag":               (payment.amount / 100).toFixed(2),
-    "Totaal verschuldigd":  (payment.amount / 100).toFixed(2),
-    "Valuta":               payment.currency?.toUpperCase() || "",
-    "E-mail":               payment.metadata?.email || payment.receipt_email || "",
-    "Volledige naam":       payment.metadata?.name || "",
-    "Actiecode":            payment.metadata?.actiecode || "",
-    "Betaalmethode":        payment.payment_method_types?.join(", ") || "",
-    "Accommodatie":         payment.metadata?.accommodatie || "",
-    "Aangemaakt":           new Date(payment.created * 1000).toLocaleString("nl-NL"),
-    "Cursusdatum":          payment.metadata?.cursusdatum || "",
+    "payment id":           payment.id,
+    "status":               payment.status,
+    "naam cursus":          payment.metadata?.sheet_name || "",
+    "bedrag":               (payment.amount / 100).toFixed(2),
+    "totaal verschuldigd":  (payment.amount / 100).toFixed(2),
+    "valuta":               payment.currency?.toUpperCase() || "",
+    "e-mail":               payment.metadata?.email || payment.receipt_email || "",
+    "volledige naam":       payment.metadata?.name || "",
+    "actiecode":            payment.metadata?.actiecode || "",
+    "betaalmethode":        payment.payment_method_types?.join(", ") || "",
+    "accommodatie":         payment.metadata?.accommodatie || "",
+    "aangemaakt":           new Date(payment.created * 1000).toLocaleString("nl-NL"),
+    "cursusdatum":          payment.metadata?.cursusdatum || "",
   };
-  
-  return headers.map((header) => fieldMap[header.trim()] || "");
+  return mapToRow(fieldMap, headers);
 }
 
 // ── Mollie ────────────────────────────────────────────
 function mapMollieToColumns(payment, headers) {
   const m = payment.metadata || {};
   const fieldMap = {
-    "Payment ID":           m.referentie      || "",
-    "Status":               "paid",
-    "Naam cursus":          m.cursus           || "",
-    "Bedrag":               m.bedragIncl       || "",
-    "Totaal verschuldigd":  m.bedragIncl       || "",
-    "Bedrag excl. BTW":     m.bedragExcl       || "",
-    "Valuta":               "EUR",
-    "E-mail":               m.email            || "",
-    "Volledige naam":       m.naam             || "",
-    "Telefoonnummer":       m.telefoon         || "",
-    "Betaalmethode":        m.methode          || "",
-    "Centrum":              m.centrum          || "",
-    "Tarief":               m.tarief           || "",
-    "Aangemaakt":           m.datum            || new Date().toLocaleString("nl-NL"),
-    "Cursusdatum":          m.cursusdatum      || "",
-    // Partnervelden
-    "Partner naam":         m.partner_voornaam && m.partner_achternaam
+    "payment id":           m.referentie       || "",
+    "status":               "paid",
+    "naam cursus":          m.cursus            || "",
+    "bedrag":               m.bedragIncl        || "",
+    "totaal verschuldigd":  m.bedragIncl        || "",
+    "bedrag excl btw":      m.bedragExcl        || "",
+    "bedrag excl. btw":     m.bedragExcl        || "",
+    "valuta":               "EUR",
+    "e-mail":               m.email             || "",
+    "volledige naam":       m.naam              || "",
+    "telefoonnummer":       m.telefoon          || "",
+    "betaalmethode":        m.methode           || "",
+    "centrum":              m.centrum           || "",
+    "tarief":               m.tarief            || "",
+    "aangemaakt":           m.datum             || new Date().toLocaleString("nl-NL"),
+    "cursusdatum":          m.cursusdatum       || "",
+    "partner naam":         m.partner_voornaam && m.partner_achternaam
                               ? `${m.partner_voornaam} ${m.partner_achternaam}` : "",
-    "Partner e-mail":       m.partner_email    || "",
+    "partner e-mail":       m.partner_email     || "",
   };
-  return headers.map((header) => fieldMap[header] ?? "");
+  return mapToRow(fieldMap, headers);
 }
 
 module.exports = { syncToGoogleSheets };
