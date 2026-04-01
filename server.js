@@ -1,4 +1,4 @@
-// v14 - Fix phone E.164 formatting for In3 orders
+// v14 - SMTP email + urlencoded webhook fix
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
 });
@@ -7,35 +7,38 @@ process.on('unhandledRejection', (err) => {
 });
 
 require("dotenv").config();
-const express  = require("express");
-const cors     = require("cors");
+const express    = require("express");
+const cors       = require("cors");
+const nodemailer = require("nodemailer");
 
 const app = express();
 app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v12" });
+  res.json({ status: "ok", version: "v14" });
 });
- 
-async function sendMail({ to, subject, html }) {
-  if (!process.env.APPS_SCRIPT_URL) {
-    console.error("E-mail niet verstuurd: APPS_SCRIPT_URL niet ingesteld");
-    return;
-  }
-  const res = await fetch(process.env.APPS_SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "send_email", to, subject, html }),
-  });
-  const result = await res.json();
-  if (result.status === "ok") {
-    console.log(`✓ E-mail verstuurd via Apps Script relay naar: ${to}`);
-  } else {
-    console.error("E-mail relay mislukt:", JSON.stringify(result));
-  }
-}
 
+// ── E-mail via SMTP ────────────────────────────────────
+const transporter = nodemailer.createTransport({
+  host:   process.env.SMTP_HOST,
+  port:   parseInt(process.env.SMTP_Port) || 587,
+  secure: process.env.SMTP_SECURE === "true",
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+async function sendMail({ to, subject, html }) {
+  await transporter.sendMail({
+    from: process.env.SMTP_USER,
+    to,
+    subject,
+    html,
+  });
+  console.log(`✓ E-mail verstuurd via SMTP naar: ${to}`);
+}
 
 // ── Stripe setup (alleen als keys aanwezig) ────────────
 let stripe, syncToGoogleSheets;
@@ -354,6 +357,13 @@ if (process.env.MOLLIE_API_KEY) {
           </td>
         </tr>
       </table>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #ddd;font-size:11px;color:#999;line-height:1.6;">
+        Stichting Maharishi Vedisch Instituut<br>
+        Gaffelaarspad 28, 1081 KK Amsterdam<br>
+        Tel: 020 785 0048<br>
+        KVK: 41160316 &middot; BTW: NL806088928B01<br>
+        IBAN: NL98 INGB 0660 8746 79
+      </div>
     </div>
 
     <p style="color:#555;font-size:13px;line-height:1.6;">
@@ -593,7 +603,6 @@ if (process.env.MOLLIE_API_KEY) {
         );
 
         // ── HubSpot contact ophalen (voor leraar + cursusdata) ──
-        // Fallback: zoek op e-mail als contactId ontbreekt (bijv. directe form-gebruikers)
         let hubContact = contactId
           ? await getHubSpotContact(contactId)
           : await getHubSpotContactByEmail(email);
@@ -619,7 +628,6 @@ if (process.env.MOLLIE_API_KEY) {
             hubContact = { id: contactId, properties: {} };
             console.log(`✓ Nieuw HubSpot contact aangemaakt: ${email} → ${contactId}`);
           } else if (newContact?.error === "CONTACT_EXISTS") {
-            // Contact bestaat maar was nog niet geïndexeerd voor e-mailzoekactie (race condition)
             const match = newContact.message?.match(/Existing ID:\s*(\d+)/);
             if (match) {
               contactId  = match[1];
@@ -638,7 +646,6 @@ if (process.env.MOLLIE_API_KEY) {
         const telefoonFinal  = contact?.phone             || telefoon;
 
         // ── HubSpot: contact updaten ────────────────────────────
-        // initiatie_datum wordt NIET overschreven — staat al correct via het formulier
         await updateHubSpotContact(contactId, {
           cursusbedrag_betaald: parseFloat(meta.bedrag_incl),
           tm_status:            "Meditator",
@@ -681,41 +688,6 @@ if (process.env.MOLLIE_API_KEY) {
             ...extraData,
           },
         });
-
-        // ── Aanmeldingen sheet (Apps Script relay) ────────────────
-        if (process.env.APPS_SCRIPT_URL) {
-          try {
-            const naamDelen = (naam || "").trim().split(/\s+/);
-            const relayRes = await fetch(process.env.APPS_SCRIPT_URL, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                action:              "write_aanmelding",
-                voornaam:            naamDelen[0] || "",
-                achternaam:          naamDelen.slice(1).join(" ") || "",
-                email,
-                telefoon:            telefoonFinal || "",
-                centrum_naam:        centrum || "",
-                initiatie_datum:     initiatieDatum || "",
-                cursus_tijdslot:     tijdslot || "",
-                plaats_instructie:   locatie || "",
-                cursus_type:         meta.cursusnaam || "",
-                leraar_email:        leraarEmail || "",
-                voornaam_leraar:     voornaamLeraar || "",
-                taal_nlen:           taal || "NL",
-                cursusbedrag_betaald: meta.bedrag_incl || "",
-              }),
-            });
-            const relayResult = await relayRes.json();
-            if (relayResult.status === "ok") {
-              console.log("✓ Aanmelding geschreven naar Aanmeldingen sheet via relay");
-            } else {
-              console.error("Aanmeldingen relay mislukt:", relayResult);
-            }
-          } catch (relayErr) {
-            console.error("Aanmeldingen relay fout (niet-blokkerend):", relayErr.message);
-          }
-        }
 
         // ── Bevestigingsmail aan cursist ────────────────────────
         await stuurBevestigingCursist({
