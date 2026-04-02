@@ -1,4 +1,4 @@
-// v14 - SMTP email + urlencoded webhook fix
+// v15 - Apps Script relay + factuur bedrijfsgegevens + urlencoded webhook
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
 });
@@ -7,37 +7,30 @@ process.on('unhandledRejection', (err) => {
 });
 
 require("dotenv").config();
-const express    = require("express");
-const cors       = require("cors");
-const nodemailer = require("nodemailer");
+const express  = require("express");
+const cors     = require("cors");
 
 const app = express();
 app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v14" });
+  res.json({ status: "ok", version: "v15" });
 });
 
-// ── E-mail via SMTP ────────────────────────────────────
-const transporter = nodemailer.createTransport({
-  host:   process.env.SMTP_HOST,
-  port:   parseInt(process.env.SMTP_Port) || 587,
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+// ── E-mail via Apps Script relay ───────────────────────
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby4hh-ER7zi6E6NZtpSw7tA1vuIRnpGrbTFxaG-l3FduJ6YC2aoARiBlYNLprCOoIP2Tw/exec";
 
 async function sendMail({ to, subject, html }) {
-  await transporter.sendMail({
-    from: process.env.SMTP_USER,
-    to,
-    subject,
-    html,
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method:   "POST",
+    headers:  { "Content-Type": "application/json" },
+    body:     JSON.stringify({ action: "send_email", to, subject, html }),
+    redirect: "follow",
   });
-  console.log(`✓ E-mail verstuurd via SMTP naar: ${to}`);
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Apps Script e-mail fout: ${res.status} ${text}`);
+  console.log(`✓ E-mail verstuurd via Apps Script naar: ${to}`);
 }
 
 // ── Stripe setup (alleen als keys aanwezig) ────────────
