@@ -1,4 +1,4 @@
-// v15 - Apps Script relay + factuur bedrijfsgegevens + urlencoded webhook
+// v16 - leraar lookup via plaats_instructie + factuur bedrijfsgegevens
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
 });
@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v15" });
+  res.json({ status: "ok", version: "v16" });
 });
 
 // ── E-mail via Apps Script relay ───────────────────────
@@ -31,6 +31,61 @@ async function sendMail({ to, subject, html }) {
   const text = await res.text();
   if (!res.ok) throw new Error(`Apps Script e-mail fout: ${res.status} ${text}`);
   console.log(`✓ E-mail verstuurd via Apps Script naar: ${to}`);
+}
+
+// ── Leraar lookup via plaats/centrum ───────────────────
+const CENTRA_LERAREN = [
+  { stad: "alkmaar",           email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
+  { stad: "almere",            email: "soma@xs4all.nl",                            leraar: "Wim" },
+  { stad: "amersfoort",        email: "jans-jong@planet.nl",                       leraar: "Ton" },
+  { stad: "amsterdam",         email: "nationaal@transcendentemeditatie.com",       leraar: "Paul" },
+  { stad: "gaffelaarspad",     email: "nationaal@transcendentemeditatie.com",       leraar: "Paul" },
+  { stad: "apeldoorn",         email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
+  { stad: "arnhem",            email: "charles.jung@tm.org",                       leraar: "Charles" },
+  { stad: "boxtel",            email: "riaholt@planet.nl",                         leraar: "Ab" },
+  { stad: "breda",             email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
+  { stad: "den haag",          email: "mgrylyuk@gmail.com",                        leraar: "Mariya" },
+  { stad: "eindhoven",         email: "ellmer@gmail.com",                          leraar: "Almar" },
+  { stad: "einhoven",          email: "ellmer@gmail.com",                          leraar: "Almar" },
+  { stad: "emmen",             email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
+  { stad: "enschede",          email: "ben.robijns@icloud.com",                    leraar: "Ben" },
+  { stad: "groningen",         email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
+  { stad: "heerlen",           email: "josidhats@gmail.com",                       leraar: "Jos" },
+  { stad: "hengelo",           email: "ben.robijns@icloud.com",                    leraar: "Ben" },
+  { stad: "hilversum",         email: "theo@xs.nl",                                leraar: "Theo" },
+  { stad: "het gooi",          email: "theo@xs.nl",                                leraar: "Theo" },
+  { stad: "hertogenbosch",     email: "riaholt@planet.nl",                         leraar: "Ria" },
+  { stad: "den bosch",         email: "riaholt@planet.nl",                         leraar: "Ria" },
+  { stad: "leeuwarden",        email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
+  { stad: "lelystad",          email: "pknibbeler@solcon.nl",                      leraar: "Peter" },
+  { stad: "maastricht",        email: "j.maenen@hetnet.nl",                        leraar: "Josine" },
+  { stad: "valkenburg",        email: "j.maenen@hetnet.nl",                        leraar: "Josine" },
+  { stad: "vlodrop",           email: "conny.postel@maharishi.net",                leraar: "Conny" },
+  { stad: "meru",              email: "conny.postel@maharishi.net",                leraar: "Conny" },
+  { stad: "nijmegen",          email: "charles.jung@tm.org",                       leraar: "Charles" },
+  { stad: "roermond",          email: "charles.jung@tm.org",                       leraar: "Charles" },
+  { stad: "odili",             email: "charles.jung@tm.org",                       leraar: "Charles" },
+  { stad: "rotterdam",         email: "geluca@hccnet.nl",                          leraar: "Gerrie" },
+  { stad: "schiedam",          email: "geluca@hccnet.nl",                          leraar: "Gerrie" },
+  { stad: "tilburg",           email: "riaholt@planet.nl",                         leraar: "Ria" },
+  { stad: "utrecht",           email: "jans-jong@planet.nl",                       leraar: "Gerda" },
+  { stad: "waalwijk",          email: "riaholt@planet.nl",                         leraar: "Ria" },
+  { stad: "wageningen",        email: "e.ruchtie@chello.nl",                       leraar: "Erno" },
+  { stad: "wassenaar",         email: "riencalis@hotmail.com",                     leraar: "Rien" },
+  { stad: "zeeland",           email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
+  { stad: "krabbendijke",      email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
+  { stad: "zevenbergen",       email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
+  { stad: "west-brabant",      email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
+  { stad: "zwolle",            email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
+];
+
+function zoekLeraar(plaatsInstructie, centrum) {
+  const tekst = (plaatsInstructie || centrum || "").toLowerCase();
+  if (!tekst) return { email: "", leraar: "" };
+  for (const c of CENTRA_LERAREN) {
+    if (tekst.includes(c.stad)) return { email: c.email, leraar: c.leraar };
+  }
+  return { email: "", leraar: "" };
 }
 
 // ── Stripe setup (alleen als keys aanwezig) ────────────
@@ -630,13 +685,21 @@ if (process.env.MOLLIE_API_KEY) {
           }
         }
         const contact        = hubContact?.properties;
-        const leraarEmail    = contact?.leraar_email      || "";
-        const voornaamLeraar = contact?.voornaam_leraar   || "";
         const initiatieDatum = contact?.initiatie_datum   || "";
         const tijdslot       = contact?.cursus_tijdslot   || "";
         const locatie        = contact?.plaats_instructie || "";
         const taal           = contact?.taal_nlen         || "NL";
         const telefoonFinal  = contact?.phone             || telefoon;
+
+        // Leraar lookup: eerst HubSpot property, dan via plaats/centrum
+        let leraarEmail    = contact?.leraar_email    || "";
+        let voornaamLeraar = contact?.voornaam_leraar || "";
+        if (!leraarEmail) {
+          const match = zoekLeraar(locatie, centrum);
+          leraarEmail    = match.email;
+          voornaamLeraar = voornaamLeraar || match.leraar;
+          if (match.email) console.log(`✓ Leraar gevonden via plaats lookup: ${locatie || centrum} → ${match.email}`);
+        }
 
         // ── HubSpot: contact updaten ────────────────────────────
         await updateHubSpotContact(contactId, {
