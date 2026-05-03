@@ -39,7 +39,7 @@ const CENTRA_LERAREN = [
   { stad: "almere",            email: "soma@xs4all.nl",                            leraar: "Wim" },
   { stad: "amersfoort",        email: "jans-jong@planet.nl",                       leraar: "Ton" },
   { stad: "amsterdam",         email: "paul@gelderloos.com",                       leraar: "Paul" },
-  { stad: "gaffelaarspad",     email: "nationaal@transcendentemeditatie.com",      leraar: "Paul" },
+  { stad: "gaffelaarspad",     email: "paul@gelderloos.com",                       leraar: "Paul" },
   { stad: "apeldoorn",         email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
   { stad: "arnhem",            email: "charles.jung@tm.org",                       leraar: "Charles" },
   { stad: "boxtel",            email: "riaholt@planet.nl",                         leraar: "Ab" },
