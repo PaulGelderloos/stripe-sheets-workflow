@@ -1,4 +1,4 @@
-// v16 - leraar lookup via plaats_instructie + factuur bedrijfsgegevens
+// v17 - BTW 21% breakdown in factuur
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message, err.stack);
 });
@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v16" });
+  res.json({ status: "ok", version: "v17" });
 });
 
 // ── E-mail via Apps Script relay ───────────────────────
@@ -38,8 +38,8 @@ const CENTRA_LERAREN = [
   { stad: "alkmaar",           email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
   { stad: "almere",            email: "soma@xs4all.nl",                            leraar: "Wim" },
   { stad: "amersfoort",        email: "jans-jong@planet.nl",                       leraar: "Ton" },
-  { stad: "amsterdam",         email: "paul@gelderloos.com",                       leraar: "Paul" },
-  { stad: "gaffelaarspad",     email: "paul@gelderloos.com",                       leraar: "Paul" },
+  { stad: "amsterdam",         email: "nationaal@transcendentemeditatie.com",       leraar: "Paul" },
+  { stad: "gaffelaarspad",     email: "nationaal@transcendentemeditatie.com",       leraar: "Paul" },
   { stad: "apeldoorn",         email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
   { stad: "arnhem",            email: "charles.jung@tm.org",                       leraar: "Charles" },
   { stad: "boxtel",            email: "riaholt@planet.nl",                         leraar: "Ab" },
@@ -396,13 +396,16 @@ if (process.env.MOLLIE_API_KEY) {
       </p>
       <table style="width:100%;font-size:14px;">
         <tr>
-          <td style="color:#555;padding:4px 0;">${cursusnaam || (isEN ? "TM Course" : "TM Cursus")}</td>
-          <td style="color:#333;text-align:right;font-weight:600;">${formatBedrag(bedragIncl)}</td>
+          <td style="color:#555;padding:4px 0;">${cursusnaam || (isEN ? "TM Course" : "TM Cursus")} (${isEN ? "excl. VAT" : "excl. BTW"})</td>
+          <td style="color:#333;text-align:right;">${formatBedrag(parseFloat(bedragIncl) / 1.21)}</td>
         </tr>
         <tr>
-          <td colspan="2" style="padding-top:12px;border-top:1px solid #ddd;color:#888;font-size:12px;">
-            ${isEN ? "VAT exempt (Art. 11.1.o Dutch VAT Act 1968)" : "BTW vrijgesteld (art. 11.1.o Wet OB 1968)"}
-          </td>
+          <td style="color:#555;padding:4px 0;">${isEN ? "VAT (21%)" : "BTW (21%)"}</td>
+          <td style="color:#333;text-align:right;">${formatBedrag(parseFloat(bedragIncl) - parseFloat(bedragIncl) / 1.21)}</td>
+        </tr>
+        <tr>
+          <td style="color:#333;padding-top:8px;border-top:1px solid #ddd;font-weight:600;">${isEN ? "Total incl. VAT" : "Totaal incl. BTW"}</td>
+          <td style="color:#333;text-align:right;font-weight:600;padding-top:8px;border-top:1px solid #ddd;">${formatBedrag(bedragIncl)}</td>
         </tr>
       </table>
       <div style="margin-top:16px;padding-top:12px;border-top:1px solid #ddd;font-size:11px;color:#999;line-height:1.6;">
