@@ -780,9 +780,14 @@ if (process.env.MOLLIE_API_KEY) {
 
         console.log(`✓ Mollie ${id} (${methode}) volledig verwerkt`);
 
-      } catch (err) {
-        console.error("Mollie webhook fout:", err.message, err.stack);
-      }
+     } catch (err) {
+  if (err.message && err.message.includes("different website profile")) {
+    console.warn(`⚠ Mollie ${id} overgeslagen: behoort tot oud profiel`);
+    return;
+  }
+  console.error("Mollie webhook fout:", err.message, err.stack);
+}
+
     });
 
     console.log("✓ Mollie routes geregistreerd");
