@@ -713,12 +713,12 @@ if (process.env.MOLLIE_API_KEY) {
         await setSoftOptIn(email);
 
         // ── HubSpot: partner contact aanmaken ───────────────────
-        const isPartner = meta.tarief?.includes("partner");
-        if (isPartner && extraData.partner_email) {
+        if (extraData.partner_email) {
           await createHubSpotContact({
             firstname:            extraData.partner_voornaam      || "",
             lastname:             extraData.partner_achternaam    || "",
             email:                extraData.partner_email,
+            phone:                extraData.partner_telefoon      || "",
             date_of_birth:        extraData.partner_geboortedatum || "",
             cursusbedrag_betaald: meta.bedrag_incl,
             initiatie_datum:      initiatieDatum,
