@@ -22,12 +22,21 @@ app.get("/", (req, res) => {
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby4hh-ER7zi6E6NZtpSw7tA1vuIRnpGrbTFxaG-l3FduJ6YC2aoARiBlYNLprCOoIP2Tw/exec";
 
 async function sendMail({ to, subject, html }) {
-  const res = await fetch(APPS_SCRIPT_URL, {
+  // Apps Script antwoordt op elke POST met een 302 naar een
+  // script.googleusercontent.com/.../echo-URL die alleen GET accepteert.
+  // fetch's ingebouwde redirect:"follow" zet die POST niet betrouwbaar om
+  // naar GET op Railway's Node/undici — vandaar handmatig afhandelen.
+  let res = await fetch(APPS_SCRIPT_URL, {
     method:   "POST",
     headers:  { "Content-Type": "application/json" },
     body:     JSON.stringify({ action: "send_email", to, subject, html }),
-    redirect: "follow",
+    redirect: "manual",
   });
+  if (res.status >= 300 && res.status < 400) {
+    const location = res.headers.get("location");
+    if (!location) throw new Error(`Apps Script e-mail fout: redirect zonder Location-header (${res.status})`);
+    res = await fetch(location, { method: "GET" });
+  }
   const text = await res.text();
   if (!res.ok) throw new Error(`Apps Script e-mail fout: ${res.status} ${text}`);
   console.log(`✓ E-mail verstuurd via Apps Script naar: ${to}`);
@@ -777,6 +786,30 @@ if (process.env.MOLLIE_API_KEY) {
           bedragIncl:      meta.bedrag_incl,
           methode,
         });
+
+        // ── Vangnet: cursusdetails ontbreken ondanks betaling ───
+        // Gebeurt vooral wanneer een leraar zijn kale BoekURL (alleen
+        // ?leraar_email=&voornaam_leraar=) rechtstreeks deelt i.p.v. de
+        // boekpagina, waardoor de hidden fields plaats/datum/tijdslot
+        // nooit geprefilled worden.
+        if (!locatie || !initiatieDatum) {
+          try {
+            await sendMail({
+              to:      "paul@gelderloos.com",
+              subject: `⚠ Cursusdetails ontbreken: ${naam} (${centrum || "centrum onbekend"})`,
+              html: `<p>Betaling van <strong>${naam}</strong> (${email}) is verwerkt, maar `
+                  + `${!locatie ? "plaats_instructie" : ""}${!locatie && !initiatieDatum ? " en " : ""}${!initiatieDatum ? "initiatie_datum" : ""} `
+                  + `ontbreekt op het HubSpot-contact.</p>`
+                  + `<p>Leraar: ${voornaamLeraar || "-"} (${leraarEmail || "onbekend"})<br>`
+                  + `Centrum: ${centrum || "-"}<br>`
+                  + `Contact: <a href="https://app-eu1.hubspot.com/contacts/147653339/record/0-1/${contactId}">${contactId}</a></p>`
+                  + `<p style="color:#888;font-size:12px;">Waarschijnlijke oorzaak: leraar deelde de kale BoekURL rechtstreeks i.p.v. de boekpagina.</p>`,
+            });
+            console.log(`⚠ Vangnetmail verstuurd: ontbrekende cursusdetails voor ${email}`);
+          } catch (mailErr) {
+            console.error("Vangnetmail mislukt:", mailErr.message);
+          }
+        }
 
         console.log(`✓ Mollie ${id} (${methode}) volledig verwerkt`);
 
