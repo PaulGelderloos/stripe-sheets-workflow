@@ -342,6 +342,7 @@ if (process.env.MOLLIE_API_KEY) {
       const {
         naam, email, centrum, cursusnaam, initiatieDatum,
         tijdslot, locatie, bedragIncl, methode, mollieId, taal,
+        bedrijfsnaam,
       } = data;
 
       if (!email) return;
@@ -402,6 +403,7 @@ if (process.env.MOLLIE_API_KEY) {
       <p style="margin:0 0 12px;color:#333;font-weight:600;font-size:14px;">
         ${isEN ? "Invoice" : "Factuur"} ${factuurNr}
       </p>
+      ${bedrijfsnaam ? `<p style="margin:0 0 12px;color:#555;font-size:13px;">${isEN ? "Billed to" : "Factuuradres"}: <strong>${bedrijfsnaam}</strong></p>` : ""}
       <table style="width:100%;font-size:14px;">
         <tr>
           <td style="color:#555;padding:4px 0;">${cursusnaam || (isEN ? "TM Course" : "TM Cursus")} (${isEN ? "excl. VAT" : "excl. BTW"})</td>
@@ -769,6 +771,7 @@ if (process.env.MOLLIE_API_KEY) {
           methode,
           mollieId:      id,
           taal,
+          bedrijfsnaam:  extraData.bedrijfsnaam || "",
         });
 
         // ── Notificatie aan leraar ──────────────────────────────
