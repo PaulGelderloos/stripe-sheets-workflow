@@ -452,6 +452,7 @@ if (process.env.MOLLIE_API_KEY) {
         leraarEmail, voornaamLeraar, cursistNaam, cursistEmail,
         cursistTelefoon, centrum, initiatieDatum, tijdslot,
         locatie, cursusnaam, bedragIncl, methode,
+        partnerNaam, partnerEmail,
       } = data;
 
       if (!leraarEmail) {
@@ -497,6 +498,13 @@ if (process.env.MOLLIE_API_KEY) {
         </td>
       </tr>
       ${rij("Telefoon",   cursistTelefoon, true)}
+      ${partnerNaam ? `
+      <tr>
+        <td style="padding:10px 12px;color:#888;border-top:1px solid #eee;">Partner</td>
+        <td style="padding:10px 12px;color:#333;border-top:1px solid #eee;">
+          ${partnerNaam}${partnerEmail ? ` &middot; <a href="mailto:${partnerEmail}" style="color:#1a3a5c;">${partnerEmail}</a>` : ""}
+        </td>
+      </tr>` : ""}
       ${rij("Startdatum", initiatieDatum ? formatDatum(initiatieDatum) : "", false)}
       ${rij("Tijden",     tijdslot,  true)}
       ${rij("Locatie",    locatie,   false)}
@@ -723,9 +731,9 @@ if (process.env.MOLLIE_API_KEY) {
         // ── HubSpot: Soft Opt-in ────────────────────────────────
         await setSoftOptIn(email);
 
-        // ── HubSpot: partner contact aanmaken ───────────────────
+        // ── HubSpot: partner contact aanmaken/bijwerken ─────────
         if (extraData.partner_email) {
-          await createHubSpotContact({
+          const partnerProps = {
             firstname:            extraData.partner_voornaam      || "",
             lastname:             extraData.partner_achternaam    || "",
             email:                extraData.partner_email,
@@ -734,8 +742,29 @@ if (process.env.MOLLIE_API_KEY) {
             cursusbedrag_betaald: meta.bedrag_incl,
             initiatie_datum:      initiatieDatum,
             centrum_boekhouding:  centrum,
-          });
-          console.log(`✓ Partner contact aangemaakt: ${extraData.partner_email}`);
+            tm_status:            "Meditator",
+          };
+          const bestaandPartnerContact = await getHubSpotContactByEmail(extraData.partner_email);
+          if (bestaandPartnerContact) {
+            await updateHubSpotContact(bestaandPartnerContact.id, partnerProps);
+            console.log(`✓ Partner contact bijgewerkt: ${extraData.partner_email}`);
+          } else {
+            const newPartnerContact = await createHubSpotContact(partnerProps);
+            if (newPartnerContact?.id) {
+              console.log(`✓ Partner contact aangemaakt: ${extraData.partner_email}`);
+            } else if (newPartnerContact?.error === "CONTACT_EXISTS" || newPartnerContact?.category === "CONFLICT") {
+              const match = newPartnerContact.message?.match(/Existing ID:\s*(\d+)/);
+              if (match) {
+                await updateHubSpotContact(match[1], partnerProps);
+                console.log(`✓ Partner contact hersteld via CONTACT_EXISTS en bijgewerkt: ${extraData.partner_email}`);
+              } else {
+                console.error("Partner contact: CONTACT_EXISTS zonder herleidbaar ID", newPartnerContact);
+              }
+            } else {
+              console.error("Partner contact aanmaken mislukt:", newPartnerContact);
+            }
+          }
+          await setSoftOptIn(extraData.partner_email);
         }
 
         // ── Google Sheets ───────────────────────────────────────
@@ -788,6 +817,9 @@ if (process.env.MOLLIE_API_KEY) {
           cursusnaam:      meta.cursusnaam,
           bedragIncl:      meta.bedrag_incl,
           methode,
+          partnerNaam:     extraData.partner_voornaam && extraData.partner_achternaam
+                              ? `${extraData.partner_voornaam} ${extraData.partner_achternaam}` : "",
+          partnerEmail:    extraData.partner_email || "",
         });
 
         // ── Vangnet: cursusdetails ontbreken ondanks betaling ───
