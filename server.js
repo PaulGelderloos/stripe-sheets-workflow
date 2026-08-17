@@ -723,8 +723,15 @@ if (process.env.MOLLIE_API_KEY) {
         }
 
         // ── HubSpot: contact updaten ────────────────────────────
+        // Bij een koppelaanmelding is bedrag_incl de gezamenlijke betaling
+        // (1,5× het tarief) — per contact wordt de helft geboekt, anders
+        // telt het maandrapport (SUMIF op cursusbedrag_betaald) dit dubbel.
+        const bedragPerPersoon = extraData.partner_email
+          ? parseFloat(meta.bedrag_incl) / 2
+          : parseFloat(meta.bedrag_incl);
+
         await updateHubSpotContact(contactId, {
-          cursusbedrag_betaald: parseFloat(meta.bedrag_incl),
+          cursusbedrag_betaald: bedragPerPersoon,
           tm_status:            "Meditator",
         });
 
@@ -739,7 +746,7 @@ if (process.env.MOLLIE_API_KEY) {
             email:                extraData.partner_email,
             phone:                extraData.partner_telefoon      || "",
             date_of_birth:        extraData.partner_geboortedatum || "",
-            cursusbedrag_betaald: meta.bedrag_incl,
+            cursusbedrag_betaald: bedragPerPersoon,
             initiatie_datum:      initiatieDatum,
             centrum_boekhouding:  centrum,
             tm_status:            "Meditator",
