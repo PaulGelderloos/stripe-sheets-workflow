@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v17" });
+  res.json({ status: "ok", version: "v18" });
 });
 
 // ── E-mail via Apps Script relay ───────────────────────
