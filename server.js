@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v18" });
+  res.json({ status: "ok", version: "v19" });
 });
 
 // ── E-mail via Apps Script relay ───────────────────────
@@ -195,7 +195,6 @@ if (process.env.MOLLIE_API_KEY) {
     const CONTACT_PROPS = [
       "leraar_email", "voornaam_leraar", "centrum_naam",
       "cursus_tijdslot", "plaats_instructie", "initiatie_datum",
-      "gewenste_cursusdatum",
       "taal_nlen", "firstname", "lastname", "phone",
     ].join(",");
 
@@ -707,11 +706,7 @@ if (process.env.MOLLIE_API_KEY) {
           }
         }
         const contact        = hubContact?.properties;
-        // Het boekformulier schrijft `gewenste_cursusdatum` (intentie, geen bevestiging).
-        // `initiatie_datum` blijft als fallback voor boekingen van vóór deze wijziging.
-        const initiatieDatum = contact?.gewenste_cursusdatum
-                            || contact?.initiatie_datum
-                            || "";
+        const initiatieDatum = contact?.initiatie_datum   || "";
         const tijdslot       = contact?.cursus_tijdslot   || "";
         const locatie        = contact?.plaats_instructie || "";
         const taal           = contact?.taal_nlen         || "NL";
@@ -735,15 +730,10 @@ if (process.env.MOLLIE_API_KEY) {
           ? parseFloat(meta.bedrag_incl) / 2
           : parseFloat(meta.bedrag_incl);
 
-        // Betaling is de enige bevestiging dat de cursus doorgaat: pas hier wordt
-        // `initiatie_datum` gezet. Nooit leeg wegschrijven — dat zou een bestaande
-        // datum wissen bij een kale BoekURL (zie vangnet verderop).
-        const contactUpdate = {
+        await updateHubSpotContact(contactId, {
           cursusbedrag_betaald: bedragPerPersoon,
           tm_status:            "Meditator",
-        };
-        if (initiatieDatum) contactUpdate.initiatie_datum = initiatieDatum;
-        await updateHubSpotContact(contactId, contactUpdate);
+        });
 
         // ── HubSpot: Soft Opt-in ────────────────────────────────
         await setSoftOptIn(email);
