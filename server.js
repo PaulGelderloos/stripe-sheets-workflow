@@ -18,6 +18,77 @@ app.get("/", (req, res) => {
   res.json({ status: "ok", version: "v19" });
 });
 
+// ── Short teacher links ────────────────────────────────
+// One stable link per teacher. The real destination lives here, so changing it
+// never means asking every teacher to replace a link they saved months ago in
+// WhatsApp.
+//
+// The redirect points at the course booking page filtered to that teacher, not
+// at the booking form itself. A bare form link leaves centre, instruction date
+// and time slot empty — the booking page fills them in.
+const TEACHER_LINKS = {
+  // The address is the one the booking page filters on, which is the address in
+  // the course configuration sheet — not always the one a teacher uses for mail.
+  // `courses: false` means no courses are filed under them: filtering would show
+  // an empty list, so those links land on the full booking page instead.
+  "almar":       { email: "eindhoven.tm@gmail.com", courses: true  },
+  "ben":         { email: "ben.robijns@icloud.com", courses: false },
+  "charles":     { email: "charles.jung@tm.org",    courses: true  },
+  "conny":       { email: "postelc@outlook.com",    courses: false },
+  "elles":       { email: "utrecht-stad@tm.nl",     courses: true  },
+  "erno":        { email: "e.ruchtie@chello.nl",    courses: false },
+  "gerda":       { email: "utrecht@tm.nl",          courses: false },
+  "gerrie":      { email: "geluca@hccnet.nl",       courses: true  },
+  "jos":         { email: "josidhats@gmail.com",    courses: true  },
+  "josine":      { email: "josine.maenen@tm.nl",    courses: true  },
+  "lelystad":    { email: "pknibbeler@solcon.nl",   courses: false },
+  "mariya":      { email: "mariya.grylyuk@tm.org",  courses: true  },
+  "paul":        { email: "paul@gelderloos.com",    courses: true  },
+  "ria":         { email: "tmwaalwijk@planet.nl",   courses: true  },
+  "rien":        { email: "riencalis@hotmail.com",  courses: false },
+  "sjoerd":      { email: "iwcvos@gmail.com",       courses: true  },
+  "theo-marike": { email: "theo@xs.nl",             courses: false },
+  "ton":         { email: "jans-jong@planet.nl",    courses: true  },
+  "wim-marike":  { email: "soma@xs4all.nl",         courses: false },
+};
+
+
+const TEACHER_REFERRAL_CODE = "CRM4201";        // channel: Local Centre Promotion
+const TM_SITE = "https://www.tm.nl";
+
+function redirectTeacherLink(req, res) {
+  const slug    = String(req.params.slug || "").toLowerCase();
+  const teacher = TEACHER_LINKS[slug];
+
+  // An unknown name still reaches the booking page rather than an error — the
+  // visitor came to book a course, not to debug a link.
+  if (slug && !teacher) console.warn(`Onbekende leraar-slug: ${slug}`);
+
+  const lang = String(req.query.lang || "").toLowerCase() === "en" ? "en" : "nl";
+  const url  = new URL(`${TM_SITE}/${lang}/cursus-boeken`);
+
+  // Carry through anything appended to the short link (?stad=, ?cursus_type=),
+  // skipping the two this route sets itself.
+  for (const [key, value] of Object.entries(req.query)) {
+    if (key === "lang" || key === "leraar_email") continue;
+    if (typeof value === "string") url.searchParams.set(key, value);
+  }
+  // Only filter when there is something to filter to.
+  if (teacher && teacher.courses) url.searchParams.set("leraar_email", teacher.email);
+
+  // A visitor who arrived here from an ad keeps that campaign code; the
+  // referral code is only the fallback for a link shared hand to hand.
+  if (!url.searchParams.has("leadsource")) {
+    url.searchParams.set("leadsource", TEACHER_REFERRAL_CODE);
+  }
+
+  res.redirect(302, url.toString());
+}
+
+// b.tm.nl/<name>. The bare /b/<name> form stays valid so any link already
+// handed out keeps working; the short one is what teachers are given.
+app.get("/b/:slug?", redirectTeacherLink);
+
 // ── E-mail via Apps Script relay ───────────────────────
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby4hh-ER7zi6E6NZtpSw7tA1vuIRnpGrbTFxaG-l3FduJ6YC2aoARiBlYNLprCOoIP2Tw/exec";
 
@@ -873,6 +944,11 @@ if (process.env.MOLLIE_API_KEY) {
 } else {
   console.warn("⚠ MOLLIE_API_KEY niet gevonden - Mollie routes uitgeschakeld");
 }
+
+// Registered last, after every real endpoint, so it can only catch what nothing
+// else claimed. The pattern keeps it to bare names: no slashes, no dots, so a
+// mistyped API path still 404s instead of silently redirecting.
+app.get("/:slug([a-z0-9-]{2,30})", redirectTeacherLink);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => console.log(`Server draait op poort ${PORT}`))
