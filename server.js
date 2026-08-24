@@ -32,7 +32,7 @@ const TEACHER_LINKS = {
   // `courses: false` means no courses are filed under them: filtering would show
   // an empty list, so those links land on the full booking page instead.
   "almar":       { email: "eindhoven.tm@gmail.com", courses: true  },
-  "ben":         { email: "ben.robijns@icloud.com", courses: false },
+  "ben":         { email: "oldenzaal@tm.nl",        courses: true  },
   "charles":     { email: "charles.jung@tm.org",    courses: true  },
   "conny":       { email: "postelc@outlook.com",    courses: false },
   "elles":       { email: "utrecht-stad@tm.nl",     courses: true  },
