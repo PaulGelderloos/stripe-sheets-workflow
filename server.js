@@ -646,7 +646,7 @@ if (process.env.MOLLIE_API_KEY) {
         leraarEmail, voornaamLeraar, cursistNaam, cursistEmail,
         cursistTelefoon, centrum, initiatieDatum, tijdslot,
         locatie, cursusnaam, bedragIncl, methode,
-        partnerNaam, partnerEmail,
+        partnerNaam, partnerEmail, partnerTijdslot,
       } = data;
 
       if (!leraarEmail) {
@@ -697,6 +697,14 @@ if (process.env.MOLLIE_API_KEY) {
         <td style="padding:10px 12px;color:#888;border-top:1px solid #eee;">Partner</td>
         <td style="padding:10px 12px;color:#333;border-top:1px solid #eee;">
           ${partnerNaam}${partnerEmail ? ` &middot; <a href="mailto:${partnerEmail}" style="color:#1a3a5c;">${partnerEmail}</a>` : ""}
+        </td>
+      </tr>` : ""}
+      ${partnerTijdslot ? `
+      <tr>
+        <td style="padding:10px 12px;color:#888;border-top:1px solid #eee;">Tijdslot partner</td>
+        <td style="padding:10px 12px;color:#333;border-top:1px solid #eee;">
+          ${partnerTijdslot}
+          <span style="color:#888;font-size:12px;"> &mdash; wens van de cursist, nog af te stemmen</span>
         </td>
       </tr>` : ""}
       ${rij("Startdatum", initiatieDatum ? formatDatum(initiatieDatum) : "", false)}
@@ -1021,6 +1029,9 @@ if (process.env.MOLLIE_API_KEY) {
           partnerNaam:     extraData.partner_voornaam && extraData.partner_achternaam
                               ? `${extraData.partner_voornaam} ${extraData.partner_achternaam}` : "",
           partnerEmail:    extraData.partner_email || "",
+          // Twee mensen hebben twee instructietijden nodig; de boeking legt er
+          // maar één vast. Dit is de wens die de cursist bij het betalen opgaf.
+          partnerTijdslot: extraData.partner_tijdslot || "",
         });
 
         // ── Vangnet: cursusdetails ontbreken ondanks betaling ───
