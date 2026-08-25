@@ -165,10 +165,10 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
   "use strict";
   var CHANNELS = [
     { key:"ORG",   label:"Org",     full:"Organic",          v:"--c-org"   },
-    { key:"FB",    label:"FB",      full:"Meta",             v:"--c-fb"    },
+    { key:"FB",    label:"Meta",    full:"Meta (Facebook, Instagram)", v:"--c-fb" },
     { key:"GAP",   label:"GAP",     full:"Google Ads",       v:"--c-gap"   },
     { key:"TTOK",  label:"TTOK",    full:"TikTok",           v:"--c-ttok"  },
-    { key:"OTHER", label:"Other",   full:"Other",            v:"--c-other" },
+    { key:"OTHER", label:"Other",   full:"Google Ads Grant, WhatsApp, email, referral", v:"--c-other" },
     { key:"NONE",  label:"No code", full:"No campaign code", v:"--c-none"  }
   ];
   var MONTHS = ["January","February","March","April","May","June",
@@ -179,7 +179,7 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
   function el(t,c,x){ var n=document.createElement(t); if(c)n.className=c; if(x!==undefined)n.textContent=x; return n; }
   function iso(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
   function monthLabel(k){ var p=k.split("-"); return MONTHS[Number(p[1])-1]+" "+p[0]; }
-  function titleCase(s){ return s.charAt(0)==="—" ? s : s.replace(/(^|[\s\-\/])([a-z])/g,function(_,p,c){return p+c.toUpperCase();}); }
+  function titleCase(s){ return (s.charAt(0)==="—"||s==="No TM Centre") ? s : s.replace(/(^|[\s\-\/])([a-z])/g,function(_,p,c){return p+c.toUpperCase();}); }
 
   function setPreset(kind){
     var now=new Date(), from, to=now;
