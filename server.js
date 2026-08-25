@@ -18,6 +18,114 @@ app.get("/", (req, res) => {
   res.json({ status: "ok", version: "v19" });
 });
 
+// ── Course feed proxy ──────────────────────────────────
+// The booking page used to call Apps Script directly, which costs a few
+// seconds of container start-up per visitor and occasionally minutes. This
+// keeps a copy in memory, refreshed in the background, so a visitor never
+// waits on Google. If Apps Script is slow or down, the last good copy is
+// served instead of an empty list.
+const CURSUS_FEED_UPSTREAM =
+  "https://script.google.com/macros/s/AKfycbxbbvduAy1JdKsZlU0BDQDo0Hq53iMzKyP3Er2eHwo_liFhKdbyREkdDN0Rjp9oLq7P_g/exec";
+const CURSUS_FEED_REFRESH_MS = 60 * 1000;
+const CURSUS_FEED_TIMEOUT_MS = 25 * 1000;
+
+const cursusFeed = {
+  json: null,          // the bare JSON payload, without the JSONP wrapper
+  count: 0,
+  fetchedAt: 0,
+  refreshing: null,    // in-flight promise, so concurrent callers share one fetch
+  lastError: null,
+  failures: 0,
+};
+
+// Upstream answers with `callback({...})`. Peel the wrapper so the payload can
+// be re-wrapped with whatever callback name this caller asked for.
+function stripJsonp(body) {
+  const open = body.indexOf("(");
+  const close = body.lastIndexOf(")");
+  if (open === -1 || close === -1 || close < open) return null;
+  return body.slice(open + 1, close);
+}
+
+async function haalCursusFeed() {
+  if (cursusFeed.refreshing) return cursusFeed.refreshing;
+
+  cursusFeed.refreshing = (async () => {
+    const stop = new AbortController();
+    const timer = setTimeout(() => stop.abort(), CURSUS_FEED_TIMEOUT_MS);
+    try {
+      const res = await fetch(CURSUS_FEED_UPSTREAM + "?callback=cb", {
+        redirect: "follow",
+        signal: stop.signal,
+      });
+      if (!res.ok) throw new Error(`upstream ${res.status}`);
+
+      const json = stripJsonp(await res.text());
+      if (!json) throw new Error("geen JSONP-antwoord");
+
+      const parsed = JSON.parse(json);
+      if (!Array.isArray(parsed.cursussen)) throw new Error("veld cursussen ontbreekt");
+
+      // Apps Script answers its own failures with an empty list plus an error
+      // field. Never let that overwrite a good copy.
+      if (parsed.error) throw new Error(`upstream meldt: ${parsed.error}`);
+      if (parsed.cursussen.length === 0 && cursusFeed.count > 0) {
+        throw new Error("lege lijst terwijl er eerder cursussen waren");
+      }
+
+      cursusFeed.json = json;
+      cursusFeed.count = parsed.cursussen.length;
+      cursusFeed.fetchedAt = Date.now();
+      cursusFeed.lastError = null;
+      cursusFeed.failures = 0;
+      return json;
+    } catch (err) {
+      cursusFeed.lastError = err.message;
+      cursusFeed.failures++;
+      console.warn(`Cursusfeed ophalen mislukt (${cursusFeed.failures}x): ${err.message}`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+      cursusFeed.refreshing = null;
+    }
+  })();
+
+  return cursusFeed.refreshing;
+}
+
+app.get("/cursussen", async (req, res) => {
+  const callback = String(req.query.callback || "callback").replace(/[^\w$.]/g, "");
+
+  // Only the very first visitor after a restart waits; everyone else is served
+  // from memory while the refresh happens behind them.
+  if (!cursusFeed.json) await haalCursusFeed();
+
+  const payload = cursusFeed.json || JSON.stringify({ cursussen: [], error: cursusFeed.lastError });
+
+  res.type("application/javascript");
+  res.set("Cache-Control", "public, max-age=30");
+  res.send(`${callback}(${payload})`);
+});
+
+app.get("/cursussen/status", (req, res) => {
+  res.json({
+    cursussen: cursusFeed.count,
+    ouderdomSeconden: cursusFeed.fetchedAt ? Math.round((Date.now() - cursusFeed.fetchedAt) / 1000) : null,
+    laatsteFout: cursusFeed.lastError,
+    mislukt: cursusFeed.failures,
+  });
+});
+
+// Called after a booking takes the last seat, so the list does not keep showing
+// places that are gone.
+app.get("/cursussen/ververs", async (req, res) => {
+  await haalCursusFeed();
+  res.json({ cursussen: cursusFeed.count, laatsteFout: cursusFeed.lastError });
+});
+
+haalCursusFeed();
+setInterval(haalCursusFeed, CURSUS_FEED_REFRESH_MS);
+
 // ── Short teacher links ────────────────────────────────
 // One stable link per teacher. The real destination lives here, so changing it
 // never means asking every teacher to replace a link they saved months ago in
