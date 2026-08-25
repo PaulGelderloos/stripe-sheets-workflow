@@ -44,12 +44,16 @@ function leadsAuth(req, res, next) {
 }
 
 // Campaign code -> channel. Mirrors the mapping in the leads codes sheet; a
+// Google Ads Grant sits under OTHER, not GAP: marketing ops reports grant
+// traffic separately from paid spend (Mike, 25 Aug 2026). Non-attributed
+// Google Ads stays in GAP.
+//
 // code that is not listed still counts, under "OTHER", and is reported back so
 // a new code shows up instead of vanishing.
 const LEADS_CODE_CHANNEL = {
   CRM1780:"GAP", CRM1781:"GAP", CRM1782:"GAP", CRM2379:"GAP",
-  CRM2082:"GAP", CRM2083:"GAP", CRM2084:"GAP", CRM2085:"GAP",
-  CRM2086:"GAP", CRM2090:"GAP", CRM2091:"GAP",
+  CRM2082:"OTHER", CRM2083:"OTHER", CRM2084:"OTHER", CRM2085:"OTHER",
+  CRM2086:"OTHER", CRM2090:"OTHER", CRM2091:"OTHER",
   CRM2101:"GAP", CRM2102:"GAP", CRM3992:"GAP", CRM3994:"GAP", CRM4058:"GAP",
   CRM2055:"ORG", CRM2056:"ORG", CRM2096:"ORG", CRM2097:"ORG", CRM4200:"ORG",
   CRM2773:"ORG", CRM2774:"ORG", CRM2775:"ORG", CRM2776:"ORG", CRM2777:"ORG",
