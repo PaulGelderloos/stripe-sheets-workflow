@@ -40,7 +40,7 @@ const TEACHER_LINKS = {
   "gerrie":      { email: "geluca@hccnet.nl",       courses: true  },
   "jos":         { email: "josidhats@gmail.com",    courses: true  },
   "josine":      { email: "josine.maenen@tm.nl",    courses: true  },
-  "mariya":      { email: "mariya.grylyuk@tm.org",  courses: true  },
+  "mariya":      { email: "mariya.grylyuk@tm.org",  courses: true, lang: "en" },
   "paul":        { email: "paul@gelderloos.com",    courses: true  },
   "ria":         { email: "tmwaalwijk@planet.nl",   courses: true  },
   "rien":        { email: "riencalis@hotmail.com",  courses: false },
@@ -54,14 +54,28 @@ const TEACHER_REFERRAL_CODE = "CRM4201";        // channel: Local Centre Promoti
 const TM_SITE = "https://www.tm.nl";
 
 function redirectTeacherLink(req, res) {
-  const slug    = String(req.params.slug || "").toLowerCase();
+  let slug = String(req.params.slug || "").toLowerCase();
+
+  // "paul-en" / "paul-nl" pick the language, but only when the part before the
+  // suffix is a real name — a teacher whose own slug ends in -en still works.
+  let suffixLang = "";
+  if (!TEACHER_LINKS[slug]) {
+    const match = /^(.+)-(en|nl)$/.exec(slug);
+    if (match && TEACHER_LINKS[match[1]]) {
+      slug = match[1];
+      suffixLang = match[2];
+    }
+  }
   const teacher = TEACHER_LINKS[slug];
 
   // An unknown name still reaches the booking page rather than an error — the
   // visitor came to book a course, not to debug a link.
   if (slug && !teacher) console.warn(`Onbekende leraar-slug: ${slug}`);
 
-  const lang = String(req.query.lang || "").toLowerCase() === "en" ? "en" : "nl";
+  // Explicit ?lang= wins, then the suffix, then the teacher's own default.
+  const asked = String(req.query.lang || "").toLowerCase() || suffixLang ||
+                (teacher && teacher.lang) || "nl";
+  const lang = asked === "en" ? "en" : "nl";
   const url  = new URL(`${TM_SITE}/${lang}/cursus-boeken`);
 
   // Carry through anything appended to the short link (?stad=, ?cursus_type=),
