@@ -18,6 +18,165 @@ app.get("/", (req, res) => {
   res.json({ status: "ok", version: "v19" });
 });
 
+// ── Leads report ───────────────────────────────────────
+// A hosted version of the leads dashboard, so the marketing team can open it
+// themselves instead of asking for a copy. Reads HubSpot server-side with the
+// app's own token; viewers need no HubSpot account of their own.
+//
+// It shows customer data, so it never serves without a password. If
+// LEADS_PASSWORD is unset the route refuses rather than opening up.
+const LEADS_USER = process.env.LEADS_USER || "tm";
+
+function leadsAuth(req, res, next) {
+  if (!process.env.LEADS_PASSWORD) {
+    return res.status(503).type("text/plain").send(
+      "Leads report is niet geconfigureerd: zet LEADS_PASSWORD in Railway."
+    );
+  }
+  const header = req.headers.authorization || "";
+  const [scheme, encoded] = header.split(" ");
+  if (scheme === "Basic" && encoded) {
+    const [user, ...rest] = Buffer.from(encoded, "base64").toString("utf8").split(":");
+    if (user === LEADS_USER && rest.join(":") === process.env.LEADS_PASSWORD) return next();
+  }
+  res.set("WWW-Authenticate", 'Basic realm="TM Leads", charset="UTF-8"');
+  res.status(401).type("text/plain").send("Inloggen vereist");
+}
+
+// Campaign code -> channel. Mirrors the mapping in the leads codes sheet; a
+// code that is not listed still counts, under "OTHER", and is reported back so
+// a new code shows up instead of vanishing.
+const LEADS_CODE_CHANNEL = {
+  CRM1780:"GAP", CRM1781:"GAP", CRM1782:"GAP", CRM2379:"GAP",
+  CRM2082:"GAP", CRM2083:"GAP", CRM2084:"GAP", CRM2085:"GAP",
+  CRM2086:"GAP", CRM2090:"GAP", CRM2091:"GAP",
+  CRM2101:"GAP", CRM2102:"GAP", CRM3992:"GAP", CRM3994:"GAP", CRM4058:"GAP",
+  CRM2055:"ORG", CRM2056:"ORG", CRM2096:"ORG", CRM2097:"ORG", CRM4200:"ORG",
+  CRM2773:"ORG", CRM2774:"ORG", CRM2775:"ORG", CRM2776:"ORG", CRM2777:"ORG",
+  CRM2158:"FB", CRM3351:"FB", CRM3352:"FB", CRM3353:"FB", CRM3354:"FB",
+  CRM3355:"FB", CRM3537:"FB", CRM3850:"FB", CRM3958:"FB", CRM3969:"FB",
+  CRM4059:"FB", CRM4060:"FB", CRM4065:"FB",
+  CRM4062:"TTOK",
+  CRM4064:"OTHER", CRM4201:"OTHER"
+};
+
+function leadsChannel(code) {
+  const c = String(code || "").trim().toUpperCase();
+  if (!c) return "NONE";
+  return LEADS_CODE_CHANNEL[c] || "OTHER";
+}
+
+function leadsCentre(raw) {
+  const v = String(raw || "").trim().toLowerCase();
+  if (!v) return "— geen centrum op het formulier";
+  if (v === "de meern") return "utrecht";
+  if (v === "utrecht-stad" || v === "utrecht stad") return "utrecht stad";
+  return v;
+}
+
+// One page of contacts at a time; HubSpot caps a search at 100 per call.
+async function leadsFetchContacts(from, toExclusive) {
+  const props = ["createdate", "leadsource_code", "centrum_naam", "lezing_datum_iso"];
+  const out = [];
+  let after;
+  for (let guard = 0; guard < 120; guard++) {
+    const body = {
+      filterGroups: [{ filters: [
+        { propertyName: "createdate", operator: "GTE", value: String(Date.parse(from)) },
+        { propertyName: "createdate", operator: "LT",  value: String(Date.parse(toExclusive)) },
+        { propertyName: "hs_object_source_label", operator: "EQ", value: "FORM" }
+      ]}],
+      properties: props,
+      limit: 100,
+      sorts: [{ propertyName: "createdate", direction: "ASCENDING" }]
+    };
+    if (after) body.after = after;
+
+    const res = await fetch("https://api-eu1.hubapi.com/crm/v3/objects/contacts/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error(`HubSpot ${res.status}: ${(await res.text()).slice(0, 200)}`);
+
+    const page = await res.json();
+    (page.results || []).forEach(c => out.push(c.properties || {}));
+    after = page.paging && page.paging.next && page.paging.next.after;
+    if (!after) break;
+  }
+  return out;
+}
+
+app.get("/leads/data", leadsAuth, async (req, res) => {
+  const from = String(req.query.from || "");
+  const to   = String(req.query.to || "");
+  const type = String(req.query.type || "all");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    return res.status(400).json({ error: "Geef from en to op als JJJJ-MM-DD." });
+  }
+  if (from > to) return res.status(400).json({ error: "De begindatum ligt na de einddatum." });
+
+  // End date inclusive: shift a day so the whole final day counts.
+  const toEx = new Date(Date.parse(to) + 86400000).toISOString().slice(0, 10);
+
+  try {
+    const contacts = await leadsFetchContacts(from, toEx);
+
+    const wanted = contacts.filter(c => {
+      const isTalk = !!c.lezing_datum_iso;
+      if (type === "talk") return isTalk;
+      if (type === "enq")  return !isTalk;
+      return true;
+    });
+
+    const months = {};      // "2026-08" -> { ORG: n, ... , total }
+    const centres = {};     // "2026-08" -> { amsterdam: { ORG: n, ..., total } }
+    const unmapped = {};
+    let talks = 0, coded = 0;
+
+    for (const c of wanted) {
+      const month = String(c.createdate || "").slice(0, 7);
+      if (!month) continue;
+      const ch = leadsChannel(c.leadsource_code);
+      const centre = leadsCentre(c.centrum_naam);
+
+      months[month] = months[month] || { total: 0 };
+      months[month][ch] = (months[month][ch] || 0) + 1;
+      months[month].total++;
+
+      centres[month] = centres[month] || {};
+      centres[month][centre] = centres[month][centre] || { total: 0 };
+      centres[month][centre][ch] = (centres[month][centre][ch] || 0) + 1;
+      centres[month][centre].total++;
+
+      if (c.lezing_datum_iso) talks++;
+      if (ch !== "NONE") coded++;
+      const raw = String(c.leadsource_code || "").trim().toUpperCase();
+      if (raw && !LEADS_CODE_CHANNEL[raw]) unmapped[raw] = (unmapped[raw] || 0) + 1;
+    }
+
+    res.json({
+      from, to, type,
+      totaal: wanted.length,
+      introTalks: talks,
+      metCode: coded,
+      maanden: months,
+      centraPerMaand: centres,
+      onbekendeCodes: unmapped
+    });
+  } catch (err) {
+    console.error("Leads report:", err.message);
+    res.status(502).json({ error: "HubSpot antwoordde niet: " + err.message });
+  }
+});
+
+app.get("/leads", leadsAuth, (req, res) => {
+  res.sendFile(require("path").join(__dirname, "public", "leads.html"));
+});
+
 // ── Course feed proxy ──────────────────────────────────
 // The booking page used to call Apps Script directly, which costs a few
 // seconds of container start-up per visitor and occasionally minutes. This

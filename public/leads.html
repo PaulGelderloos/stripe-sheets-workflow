@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>TM Leads — per kanaal</title>
+<style>
+:root{color-scheme:light;--bg:#faf7f2;--surface:#fff;--surface-2:#f4efe7;--ink:#1c1a16;
+--ink-2:#5b564d;--ink-3:#8a8377;--rule:#e6dfd3;--rule-soft:#efe9de;--accent:#f5aa0a;
+--accent-ink:#9a6500;--critical:#a8261c;--critical-bg:#fbeceb;--ok:#1f6b45;--ok-bg:#eaf3ee;
+--c-org:#1baf7a;--c-fb:#2a78d6;--c-gap:#eb6834;--c-ttok:#e87ba4;--c-other:#a9a296;--c-none:#cfc7b8}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#131210;--surface:#1c1a16;
+--surface-2:#24211c;--ink:#f6f2e9;--ink-2:#b9b3a6;--ink-3:#877f72;--rule:#34302a;
+--rule-soft:#292520;--accent:#f0c814;--accent-ink:#f0c814;--critical:#ef7268;
+--critical-bg:#2b1a18;--ok:#7fc4a0;--ok-bg:#17251d;--c-org:#199e70;--c-fb:#3987e5;
+--c-gap:#d95926;--c-ttok:#d55181;--c-other:#6d675c;--c-none:#464038}}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Roboto,Arial,Helvetica,sans-serif;
+font-weight:300;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 24px 90px}
+.wrap{max-width:1180px;margin:0 auto}
+header{padding:48px 0 22px}
+.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:clamp(30px,4.4vw,44px);
+line-height:1.1;margin:8px 0 10px}
+h1 em{font-style:italic;color:var(--accent-ink)}
+.dek{max-width:66ch;color:var(--ink-2);font-size:15.5px;margin:0}
+.controls{display:flex;flex-wrap:wrap;gap:14px 18px;align-items:flex-end;padding:18px 20px;
+background:var(--surface);border:1px solid var(--rule);border-radius:4px;margin-top:14px}
+.ctl{display:flex;flex-direction:column;gap:5px}
+.ctl label{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+input[type=date]{font:inherit;font-size:14px;padding:8px 10px;color:var(--ink);background:var(--bg);
+border:1px solid var(--rule);border-radius:3px}
+button{font:inherit;font-size:14px;cursor:pointer;padding:9px 18px;border-radius:3px;
+border:1px solid transparent;background:var(--ink);color:var(--bg)}
+button:hover:not(:disabled){opacity:.85}
+button:disabled{opacity:.45;cursor:default}
+button.ghost{background:transparent;color:var(--ink-2);border-color:var(--rule)}
+.presets,.segmented{display:flex;flex-wrap:wrap;gap:6px}
+.presets button{padding:7px 12px;font-size:13px}
+.segmented button{padding:7px 14px;font-size:13px;background:transparent;color:var(--ink-2);border-color:var(--rule)}
+.segmented button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.status{margin-top:13px;font-size:13.5px;color:var(--ink-3);min-height:20px}
+.status.err{color:var(--critical)}
+.notice{display:flex;gap:13px;align-items:flex-start;padding:15px 17px;border-radius:3px;
+margin-top:20px;font-size:14.5px;line-height:1.55}
+.notice .tag{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;font-weight:500;
+white-space:nowrap;padding-top:3px}
+.notice p{margin:0;max-width:76ch}
+.notice.warn{background:var(--surface-2);border-left:3px solid var(--accent);color:var(--ink-2)}
+.notice.warn .tag{color:var(--accent-ink)}
+.notice.bad{background:var(--critical-bg);border-left:3px solid var(--critical);color:var(--ink-2)}
+.notice.bad .tag{color:var(--critical)}
+.notice.good{background:var(--ok-bg);border-left:3px solid var(--ok);color:var(--ink-2)}
+.notice.good .tag{color:var(--ok)}
+section{padding-top:40px}
+h2{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:25px;margin:0 0 6px}
+.hint{font-size:12.5px;color:var(--ink-3)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;
+background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin-top:14px}
+.tile{background:var(--surface);padding:18px 20px;display:flex;flex-direction:column;gap:3px}
+.tile .k{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)}
+.tile .v{font-size:36px;font-weight:300;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tile .n{font-size:13px;color:var(--ink-2)}
+.tscroll{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--surface);margin-top:14px}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
+th,td{padding:9px 13px;text-align:right;border-bottom:1px solid var(--rule-soft)}
+th{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+font-weight:500;border-bottom:1px solid var(--rule);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td{font-variant-numeric:tabular-nums;color:var(--ink-2)}
+td:first-child{color:var(--ink)}
+td b{font-weight:500;color:var(--ink)}
+td.zero{color:var(--ink-3)}
+tr.total td{border-top:1px solid var(--rule);background:var(--surface-2);color:var(--ink)}
+tbody tr:last-child td{border-bottom:none}
+tr.clickable{cursor:pointer}
+tr.clickable:hover td{background:var(--surface-2)}
+tr.clickable[aria-selected=true] td{background:var(--surface-2)}
+tr.clickable[aria-selected=true] td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:8px;vertical-align:1px}
+.empty{padding:24px;text-align:center;color:var(--ink-3);font-size:14px;border:1px dashed var(--rule);
+border-radius:3px;margin-top:14px}
+.method{border-top:1px solid var(--rule);margin-top:50px;padding-top:22px}
+.method dl{display:grid;grid-template-columns:180px 1fr;gap:8px 24px;margin:0;font-size:13.5px}
+.method dt{color:var(--ink-3)}
+.method dd{margin:0;color:var(--ink-2);max-width:76ch}
+code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--surface-2);
+padding:1px 5px;border-radius:2px;color:var(--ink)}
+.hide{display:none!important}
+@media(max-width:720px){.method dl{grid-template-columns:1fr;gap:2px 0}.method dt{margin-top:11px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">TM Nederland · Marketing operations</div>
+    <h1>Leads by <em>channel</em></h1>
+    <p class="dek">Pick a period and run it. Leads per month by campaign channel, with a drill-down
+    into any month to see how they spread across the TM centres.</p>
+  </header>
+
+  <div class="controls">
+    <div class="ctl"><label for="from">From</label><input type="date" id="from"></div>
+    <div class="ctl"><label for="to">To</label><input type="date" id="to"></div>
+    <div class="ctl"><label>Quick ranges</label>
+      <div class="presets">
+        <button class="ghost" data-preset="this">This month</button>
+        <button class="ghost" data-preset="last">Last month</button>
+        <button class="ghost" data-preset="q">Last 3 months</button>
+        <button class="ghost" data-preset="ytd">Year to date</button>
+      </div>
+    </div>
+    <div class="ctl"><label>Lead type</label>
+      <div class="segmented" id="leadtype">
+        <button data-type="all" aria-pressed="true">Both</button>
+        <button data-type="talk" aria-pressed="false">Intro talks</button>
+        <button data-type="enq" aria-pressed="false">Enquiries</button>
+      </div>
+    </div>
+    <div class="ctl"><label>&nbsp;</label><button id="run">Run report</button></div>
+  </div>
+  <div class="status" id="status"></div>
+  <div id="gate"></div>
+
+  <div id="report" class="hide">
+    <section>
+      <h2 id="sum-title">Summary</h2>
+      <div class="tiles" id="tiles"></div>
+      <div id="health"></div>
+    </section>
+    <section>
+      <h2>By month</h2>
+      <p class="hint">Click any month to see how its leads spread across the centres. Click again to close.</p>
+      <div class="tscroll"><table id="month-table"></table></div>
+      <div id="legend" class="hint" style="margin-top:14px"></div>
+    </section>
+    <section>
+      <h2 id="centre-title">By centre</h2>
+      <div id="centre-wrap"></div>
+    </section>
+    <div class="method">
+      <div class="eyebrow" style="margin-bottom:14px">How these numbers are made</div>
+      <dl>
+        <dt>Population</dt>
+        <dd>HubSpot contacts created inside the period with <b>record source = Form</b>, read live each time you run the report.</dd>
+        <dt>Channel</dt>
+        <dd>Derived from <code>leadsource_code</code>. Google Ads Paid, Grant and Non-attributed report together under GAP. Other covers WhatsApp, email, referral and local centre promotion.</dd>
+        <dt>No code</dt>
+        <dd>Leads carrying no campaign code. Before 25 August 2026 the website discarded these on most pages, so anything earlier sits here and cannot be recovered.</dd>
+        <dt>Lead type</dt>
+        <dd>An intro talk booking has <code>lezing_datum_iso</code> set. Everything else counts as an enquiry, including course bookings made without a talk.</dd>
+        <dt>Centre</dt>
+        <dd><code>centrum_naam</code> from the form, with spelling variants merged.</dd>
+        <dt>End date</dt>
+        <dd>Inclusive — the whole of the end day counts.</dd>
+      </dl>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var CHANNELS = [
+    { key:"ORG",   label:"Org",     full:"Organic",          v:"--c-org"   },
+    { key:"FB",    label:"FB",      full:"Meta",             v:"--c-fb"    },
+    { key:"GAP",   label:"GAP",     full:"Google Ads",       v:"--c-gap"   },
+    { key:"TTOK",  label:"TTOK",    full:"TikTok",           v:"--c-ttok"  },
+    { key:"OTHER", label:"Other",   full:"Other",            v:"--c-other" },
+    { key:"NONE",  label:"No code", full:"No campaign code", v:"--c-none"  }
+  ];
+  var MONTHS = ["January","February","March","April","May","June",
+                "July","August","September","October","November","December"];
+  var state = { type:"all", data:null, selected:null };
+
+  function $(id){ return document.getElementById(id); }
+  function el(t,c,x){ var n=document.createElement(t); if(c)n.className=c; if(x!==undefined)n.textContent=x; return n; }
+  function iso(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function monthLabel(k){ var p=k.split("-"); return MONTHS[Number(p[1])-1]+" "+p[0]; }
+  function titleCase(s){ return s.charAt(0)==="—" ? s : s.replace(/(^|[\s\-\/])([a-z])/g,function(_,p,c){return p+c.toUpperCase();}); }
+
+  function setPreset(kind){
+    var now=new Date(), from, to=now;
+    if(kind==="this") from=new Date(now.getFullYear(),now.getMonth(),1);
+    else if(kind==="last"){ from=new Date(now.getFullYear(),now.getMonth()-1,1); to=new Date(now.getFullYear(),now.getMonth(),0); }
+    else if(kind==="q") from=new Date(now.getFullYear(),now.getMonth()-2,1);
+    else from=new Date(now.getFullYear(),0,1);
+    $("from").value=iso(from); $("to").value=iso(to);
+  }
+
+  function headerRow(first){
+    var hr=el("tr"); hr.appendChild(el("th",null,first)); hr.appendChild(el("th",null,"Total"));
+    CHANNELS.forEach(function(c){ hr.appendChild(el("th",null,c.label)); });
+    return hr;
+  }
+  function countRow(tr,counts){
+    CHANNELS.forEach(function(c){
+      var n=counts[c.key]||0;
+      tr.appendChild(el("td", n?null:"zero", n?String(n):"—"));
+    });
+  }
+
+  function renderMonths(){
+    var d=state.data, keys=Object.keys(d.maanden).sort().reverse();
+    var table=$("month-table"); table.textContent="";
+    var thead=el("thead"); thead.appendChild(headerRow("Month")); table.appendChild(thead);
+    var tbody=el("tbody"), sums={}, grand=0;
+    keys.forEach(function(k){
+      var c=d.maanden[k]; grand+=c.total;
+      var tr=el("tr","clickable");
+      tr.dataset.month=k; tr.setAttribute("role","button"); tr.setAttribute("tabindex","0");
+      tr.setAttribute("aria-selected","false");
+      tr.appendChild(el("td",null,monthLabel(k)));
+      var td=el("td"); td.appendChild(el("b",null,String(c.total))); tr.appendChild(td);
+      CHANNELS.forEach(function(ch){ sums[ch.key]=(sums[ch.key]||0)+(c[ch.key]||0); });
+      countRow(tr,c);
+      tr.addEventListener("click",function(){ select(k); });
+      tr.addEventListener("keydown",function(e){ if(e.key==="Enter"||e.key===" "){e.preventDefault();select(k);} });
+      tbody.appendChild(tr);
+    });
+    var t=el("tr","total"); t.appendChild(el("td",null,"Total"));
+    var tg=el("td"); tg.appendChild(el("b",null,String(grand))); t.appendChild(tg);
+    CHANNELS.forEach(function(ch){ t.appendChild(el("td",null,String(sums[ch.key]||0))); });
+    tbody.appendChild(t); table.appendChild(tbody);
+
+    var lg=$("legend"); lg.textContent="";
+    CHANNELS.forEach(function(c,i){
+      var s=el("span"), q=el("i","swatch"); q.style.background="var("+c.v+")";
+      s.appendChild(q); s.appendChild(document.createTextNode(c.label+" = "+c.full));
+      lg.appendChild(s); if(i<CHANNELS.length-1) lg.appendChild(document.createTextNode("  ·  "));
+    });
+  }
+
+  function renderCentres(){
+    var d=state.data, host=$("centre-wrap"); host.textContent="";
+    var rows={}, heading;
+    if(state.selected){
+      rows=d.centraPerMaand[state.selected]||{};
+      heading="By centre — "+monthLabel(state.selected);
+    } else {
+      heading="By centre — whole period";
+      Object.keys(d.centraPerMaand).forEach(function(m){
+        var per=d.centraPerMaand[m];
+        Object.keys(per).forEach(function(name){
+          rows[name]=rows[name]||{total:0};
+          rows[name].total+=per[name].total;
+          CHANNELS.forEach(function(c){ if(per[name][c.key]) rows[name][c.key]=(rows[name][c.key]||0)+per[name][c.key]; });
+        });
+      });
+    }
+    $("centre-title").textContent=heading;
+    var names=Object.keys(rows);
+    if(!names.length){ host.appendChild(el("div","empty","No leads with a centre in this selection.")); return; }
+    names.sort(function(a,b){ return (rows[b].total-rows[a].total)||a.localeCompare(b); });
+
+    var scroll=el("div","tscroll"), table=el("table");
+    var thead=el("thead"); thead.appendChild(headerRow("Centre")); table.appendChild(thead);
+    var tbody=el("tbody"), sums={}, grand=0;
+    names.forEach(function(n){
+      var r=rows[n]; grand+=r.total;
+      var tr=el("tr"); tr.appendChild(el("td",null,titleCase(n)));
+      var td=el("td"); td.appendChild(el("b",null,String(r.total))); tr.appendChild(td);
+      CHANNELS.forEach(function(c){ sums[c.key]=(sums[c.key]||0)+(r[c.key]||0); });
+      countRow(tr,r); tbody.appendChild(tr);
+    });
+    var t=el("tr","total"); t.appendChild(el("td",null,"Total"));
+    var tg=el("td"); tg.appendChild(el("b",null,String(grand))); t.appendChild(tg);
+    CHANNELS.forEach(function(c){ t.appendChild(el("td",null,String(sums[c.key]||0))); });
+    tbody.appendChild(t); table.appendChild(tbody); scroll.appendChild(table); host.appendChild(scroll);
+  }
+
+  function select(k){
+    state.selected = (state.selected===k) ? null : k;
+    Array.prototype.forEach.call(document.querySelectorAll("tr.clickable"),function(tr){
+      tr.setAttribute("aria-selected", tr.dataset.month===state.selected ? "true":"false");
+    });
+    renderCentres();
+  }
+
+  function run(){
+    var from=$("from").value, to=$("to").value;
+    if(!from||!to){ $("status").textContent="Pick a start and end date first."; $("status").className="status err"; return; }
+    if(from>to){ $("status").textContent="The start date is after the end date."; $("status").className="status err"; return; }
+    $("run").disabled=true; $("status").className="status";
+    $("status").textContent="Reading HubSpot…"; $("gate").textContent="";
+
+    fetch("/leads/data?from="+from+"&to="+to+"&type="+state.type,{credentials:"same-origin"})
+      .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }); })
+      .then(function(d){
+        state.data=d; state.selected=null;
+        if(!Object.keys(d.maanden).length){
+          $("report").className="hide";
+          var n=el("div","notice warn");
+          n.appendChild(el("div","tag","No leads"));
+          n.appendChild(el("p",null,"No form submissions in this period. Try a wider range."));
+          $("gate").appendChild(n);
+          $("status").textContent=""; $("run").disabled=false; return;
+        }
+        var keys=Object.keys(d.maanden);
+        $("sum-title").textContent="Summary — "+(keys.length===1?monthLabel(keys[0]):d.from+" to "+d.to);
+        var typeName = state.type==="talk"?"Intro talk bookings":state.type==="enq"?"Enquiries":"Website leads";
+        var tiles=$("tiles"); tiles.textContent="";
+        [[typeName,d.totaal,keys.length+(keys.length===1?" month":" months")+" in range"],
+         ["Intro talks",d.introTalks,state.type==="enq"?"excluded by the filter":"of the leads shown"],
+         ["With campaign code",d.metCode,d.totaal?Math.round(d.metCode/d.totaal*100)+"% of leads":"0%"]
+        ].forEach(function(x){
+          var t=el("div","tile");
+          t.appendChild(el("div","k",x[0])); t.appendChild(el("div","v",String(x[1])));
+          t.appendChild(el("div","n",x[2])); tiles.appendChild(t);
+        });
+
+        var h=$("health"); h.textContent="";
+        var uncoded=d.totaal-d.metCode;
+        if(uncoded){
+          var n2=el("div","notice "+(d.metCode?"warn":"bad"));
+          n2.appendChild(el("div","tag",d.metCode?"Partly coded":"No codes"));
+          n2.appendChild(el("p",null,uncoded+" of "+d.totaal+" leads carry no campaign code and sit under “No code”. "+
+            "The website only started keeping these on 25 August 2026; anything created before that date has none."));
+          h.appendChild(n2);
+        } else {
+          var g=el("div","notice good");
+          g.appendChild(el("div","tag","Fully coded"));
+          g.appendChild(el("p",null,"Every lead in this period carries a campaign code."));
+          h.appendChild(g);
+        }
+        var un=Object.keys(d.onbekendeCodes||{});
+        if(un.length){
+          var w=el("div","notice warn");
+          w.appendChild(el("div","tag","Unmapped"));
+          w.appendChild(el("p",null,"These codes arrived but are not in this page's mapping: "+un.join(", ")+
+            ". Their leads are counted under Other."));
+          h.appendChild(w);
+        }
+
+        renderMonths(); renderCentres();
+        $("report").className="";
+        $("status").textContent="Last run "+new Date().toLocaleTimeString()+" · "+d.totaal+" leads";
+        $("run").disabled=false;
+      })
+      .catch(function(e){
+        $("report").className="hide"; $("gate").textContent="";
+        var n=el("div","notice bad");
+        n.appendChild(el("div","tag","Cannot load"));
+        n.appendChild(el("p",null,String(e.message||e)));
+        $("gate").appendChild(n);
+        $("status").textContent=""; $("run").disabled=false;
+      });
+  }
+
+  setPreset("this");
+  Array.prototype.forEach.call(document.querySelectorAll("[data-preset]"),function(b){
+    b.addEventListener("click",function(){ setPreset(b.dataset.preset); });
+  });
+  Array.prototype.forEach.call($("leadtype").querySelectorAll("button"),function(b){
+    b.addEventListener("click",function(){
+      state.type=b.dataset.type;
+      Array.prototype.forEach.call($("leadtype").querySelectorAll("button"),function(o){
+        o.setAttribute("aria-pressed", o===b?"true":"false");
+      });
+    });
+  });
+  $("run").addEventListener("click",run);
+  run();
+})();
+</script>
+</body>
+</html>
