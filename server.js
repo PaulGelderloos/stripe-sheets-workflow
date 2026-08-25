@@ -46,7 +46,7 @@ const TEACHER_LINKS = {
   "rien":        { email: "riencalis@hotmail.com",  courses: false },
   "sjoerd":      { email: "iwcvos@gmail.com",       courses: true  },
   "ton":         { email: "jans-jong@planet.nl",    courses: true  },
-  "wim-marike":  { email: "soma@xs4all.nl",         courses: false },
+  "wim-marike":  { email: "soma@xs4all.nl",         courses: true  },
 };
 
 
