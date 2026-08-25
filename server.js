@@ -141,7 +141,10 @@ const TEACHER_LINKS = {
   // an empty list, so those links land on the full booking page instead.
   "almar":       { email: "eindhoven.tm@gmail.com", courses: true  },
   "ben":         { email: "oldenzaal@tm.nl",        courses: true  },
-  "charles":     { email: "charles.jung@tm.org",    courses: true  },
+  // Both names, because both teach. The single-name forms stay valid so links
+  // already shared keep working.
+  "charles":      { email: "charles.jung@tm.org",   courses: true  },
+  "charles-elsa": { email: "charles.jung@tm.org",   courses: true  },
   "conny":       { email: "postelc@outlook.com",    courses: false },
   "elles":       { email: "utrecht-stad@tm.nl",     courses: true  },
   "gerda":       { email: "utrecht@tm.nl",          courses: false },
@@ -153,7 +156,8 @@ const TEACHER_LINKS = {
   "ria":         { email: "tmwaalwijk@planet.nl",   courses: true  },
   "rien":        { email: "riencalis@hotmail.com",  courses: false },
   "sjoerd":      { email: "iwcvos@gmail.com",       courses: true  },
-  "ton":         { email: "jans-jong@planet.nl",    courses: true  },
+  "ton":          { email: "jans-jong@planet.nl",   courses: true  },
+  "ton-gerda":    { email: "jans-jong@planet.nl",   courses: true  },
   "wim-marike":  { email: "soma@xs4all.nl",         courses: true  },
 };
 
