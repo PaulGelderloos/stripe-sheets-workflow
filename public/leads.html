@@ -336,7 +336,9 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
 
         renderMonths(); renderCentres();
         $("report").className="";
-        $("status").textContent="Last run "+new Date().toLocaleTimeString()+" · "+d.totaal+" leads";
+        var opgehaald = d.opgehaaldOp ? new Date(d.opgehaaldOp) : new Date();
+        $("status").textContent = "Last run " + opgehaald.toLocaleTimeString() +
+          " · " + d.totaal + " leads" + (d.uitCache ? " · from cache" : "");
         $("run").disabled=false;
       })
       .catch(function(e){

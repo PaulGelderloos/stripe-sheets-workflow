@@ -78,6 +78,31 @@ function leadsCentre(raw) {
   return v;
 }
 
+// HubSpot refuses bursts with a 429 on its per-second policy, which a report
+// covering several months trips easily: a few hundred contacts is a handful of
+// pages fired back to back. Wait out the refusal rather than failing the report.
+async function leadsHubspotFetch(body, attempt = 0) {
+  const res = await fetch("https://api-eu1.hubapi.com/crm/v3/objects/contacts/search", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (res.status === 429 && attempt < 4) {
+    const header = Number(res.headers.get("Retry-After"));
+    const wait = Number.isFinite(header) && header > 0
+      ? header * 1000
+      : 1000 * Math.pow(2, attempt);          // 1s, 2s, 4s, 8s
+    await new Promise(r => setTimeout(r, wait));
+    return leadsHubspotFetch(body, attempt + 1);
+  }
+  if (!res.ok) throw new Error(`HubSpot ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return res.json();
+}
+
 // One page of contacts at a time; HubSpot caps a search at 100 per call.
 async function leadsFetchContacts(from, toExclusive) {
   const props = ["createdate", "leadsource_code", "centrum_naam", "lezing_datum_iso"];
@@ -96,23 +121,20 @@ async function leadsFetchContacts(from, toExclusive) {
     };
     if (after) body.after = after;
 
-    const res = await fetch("https://api-eu1.hubapi.com/crm/v3/objects/contacts/search", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.HUBSPOT_PRIVATE_APP_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) throw new Error(`HubSpot ${res.status}: ${(await res.text()).slice(0, 200)}`);
-
-    const page = await res.json();
+    const page = await leadsHubspotFetch(body);
     (page.results || []).forEach(c => out.push(c.properties || {}));
     after = page.paging && page.paging.next && page.paging.next.after;
     if (!after) break;
+    // A short pause between pages keeps a long range under the burst limit.
+    await new Promise(r => setTimeout(r, 120));
   }
   return out;
 }
+
+// Asking the same question twice — a second click on Run report — should not
+// reach HubSpot at all. Lead figures do not move by the second.
+const leadsCache = new Map();
+const LEADS_CACHE_MS = 5 * 60 * 1000;
 
 app.get("/leads/data", leadsAuth, async (req, res) => {
   const from = String(req.query.from || "");
@@ -125,6 +147,15 @@ app.get("/leads/data", leadsAuth, async (req, res) => {
 
   // End date inclusive: shift a day so the whole final day counts.
   const toEx = new Date(Date.parse(to) + 86400000).toISOString().slice(0, 10);
+
+  const cacheKey = `${from}|${to}|${type}`;
+  const hit = leadsCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < LEADS_CACHE_MS) {
+    return res.json(Object.assign({}, hit.data, {
+      opgehaaldOp: new Date(hit.at).toISOString(),
+      uitCache: true
+    }));
+  }
 
   try {
     const contacts = await leadsFetchContacts(from, toEx);
@@ -162,7 +193,7 @@ app.get("/leads/data", leadsAuth, async (req, res) => {
       if (raw && !LEADS_CODE_CHANNEL[raw]) unmapped[raw] = (unmapped[raw] || 0) + 1;
     }
 
-    res.json({
+    const antwoord = {
       from, to, type,
       totaal: wanted.length,
       introTalks: talks,
@@ -170,7 +201,12 @@ app.get("/leads/data", leadsAuth, async (req, res) => {
       maanden: months,
       centraPerMaand: centres,
       onbekendeCodes: unmapped
-    });
+    };
+    leadsCache.set(cacheKey, { at: Date.now(), data: antwoord });
+    res.json(Object.assign({}, antwoord, {
+      opgehaaldOp: new Date().toISOString(),
+      uitCache: false
+    }));
   } catch (err) {
     console.error("Leads report:", err.message);
     res.status(502).json({ error: "HubSpot antwoordde niet: " + err.message });
