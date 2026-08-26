@@ -226,7 +226,10 @@ app.get("/leads", leadsAuth, (req, res) => {
 const CURSUS_FEED_UPSTREAM =
   "https://script.google.com/macros/s/AKfycbxbbvduAy1JdKsZlU0BDQDo0Hq53iMzKyP3Er2eHwo_liFhKdbyREkdDN0Rjp9oLq7P_g/exec";
 const CURSUS_FEED_REFRESH_MS = 60 * 1000;
-const CURSUS_FEED_TIMEOUT_MS = 25 * 1000;
+// Apps Script regularly needs 20-35 s and occasionally far longer, especially
+// just after a redeploy. A tight limit turned slow answers into failures for
+// no gain: nothing waits on this refresh, it runs in the background.
+const CURSUS_FEED_TIMEOUT_MS = 60 * 1000;
 
 const cursusFeed = {
   json: null,          // the bare JSON payload, without the JSONP wrapper
