@@ -256,11 +256,20 @@ async function haalCursusFeed() {
     const stop = new AbortController();
     const timer = setTimeout(() => stop.abort(), CURSUS_FEED_TIMEOUT_MS);
     try {
-      const res = await fetch(CURSUS_FEED_UPSTREAM + "?callback=cb", {
-        redirect: "follow",
-        signal: stop.signal,
-      });
-      if (!res.ok) throw new Error(`upstream ${res.status}`);
+      // Apps Script answers /exec with a redirect to a short-lived URL, and that
+      // second hop 404s now and then while the script itself completed fine —
+      // its own execution log shows no failure at all. Retrying costs one more
+      // execution and almost always succeeds, so treat it as noise, not an outage.
+      let res = null;
+      for (let poging = 0; poging < 3; poging++) {
+        res = await fetch(CURSUS_FEED_UPSTREAM + "?callback=cb", {
+          redirect: "follow",
+          signal: stop.signal,
+        });
+        if (res.ok) break;
+        if (res.status !== 404 || poging === 2) throw new Error(`upstream ${res.status}`);
+        await new Promise(r => setTimeout(r, 800 * (poging + 1)));
+      }
 
       const json = stripJsonp(await res.text());
       if (!json) throw new Error("geen JSONP-antwoord");
@@ -326,7 +335,18 @@ app.get("/cursussen/ververs", async (req, res) => {
 });
 
 haalCursusFeed();
-setInterval(haalCursusFeed, CURSUS_FEED_REFRESH_MS);
+
+// Poll every minute while things are well, and ease off when they are not:
+// hammering a struggling upstream every 60 s helps nobody and buries the log.
+// One success returns it to the normal rhythm.
+(function plan() {
+  const rustiger = Math.min(cursusFeed.failures, 4);          // 0..4
+  const wacht = CURSUS_FEED_REFRESH_MS * Math.pow(2, rustiger);
+  setTimeout(async () => {
+    await haalCursusFeed();
+    plan();
+  }, wacht);
+})();
 
 // ── Short teacher links ────────────────────────────────
 // One stable link per teacher. The real destination lives here, so changing it
