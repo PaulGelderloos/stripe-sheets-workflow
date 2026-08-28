@@ -105,8 +105,10 @@ async function leadsHubspotFetch(body, attempt = 0) {
 
 // One page of contacts at a time; HubSpot caps a search at 100 per call.
 async function leadsFetchContacts(from, toExclusive) {
+  // firstname and lastname are read only to spot test bookings; neither they
+  // nor the email address leave the server.
   const props = ["createdate", "leadsource_code", "centrum_naam", "lezing_datum_iso",
-                 "firstname", "lastname", "email", "landing_url"];
+                 "firstname", "lastname", "landing_url"];
   const out = [];
   let after;
   for (let guard = 0; guard < 120; guard++) {
@@ -201,7 +203,6 @@ app.get("/leads/data", leadsAuth, async (req, res) => {
 
       leads.push({
         datum:   c.createdate || "",
-        email:   c.email || "",
         centrum: centre,
         kanaal:  ch,
         code:    String(c.leadsource_code || "").trim().toUpperCase(),

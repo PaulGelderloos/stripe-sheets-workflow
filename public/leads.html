@@ -65,8 +65,12 @@ background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:h
 .tile .n{font-size:13px;color:var(--ink-2)}
 .tscroll{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--surface);margin-top:14px}
 table{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
-#leads-wrap table{min-width:940px}
+#leads-wrap table{min-width:720px}
 #leads-wrap td{white-space:nowrap}
+/* The landing URL is the whole point of this table, so it wraps inside its own
+   cell rather than forcing the page sideways or hiding in a tooltip. */
+#leads-wrap td.url{white-space:normal;word-break:break-all;max-width:620px;
+  font-size:12.5px;line-height:1.45}
 th,td{padding:9px 13px;text-align:right;border-bottom:1px solid var(--rule-soft)}
 th{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
 font-weight:500;border-bottom:1px solid var(--rule);white-space:nowrap}
@@ -295,7 +299,7 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
       : rows.length+" lead"+(rows.length===1?"":"s")+", newest first.";
 
     var scroll=el("div","tscroll"), table=el("table"), thead=el("thead"), hr=el("tr");
-    ["Date","Email","Centre","Channel","Code","Type","Landed on"].forEach(function(h){
+    ["Date","Centre","Channel","Code","Type","Landed on"].forEach(function(h){
       hr.appendChild(el("th",null,h));
     });
     thead.appendChild(hr); table.appendChild(thead);
@@ -304,7 +308,6 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
       var tr=el("tr");
       var dt=new Date(l.datum);
       tr.appendChild(el("td",null, isNaN(dt) ? l.datum : dt.toLocaleDateString()+" "+dt.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})));
-      tr.appendChild(el("td",null,l.email||"—"));
       tr.appendChild(el("td",null,titleCase(l.centrum)));
       var ch=CHANNELS.filter(function(c){return c.key===l.kanaal;})[0];
       var tdC=el("td");
@@ -317,9 +320,10 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
       if(l.landing){
         var a=document.createElement("a");
         a.href=l.landing; a.target="_blank"; a.rel="noopener noreferrer";
-        a.textContent=l.landing.length>60 ? l.landing.slice(0,60)+"…" : l.landing;
-        a.title=l.landing; a.style.color="inherit";
+        a.textContent=l.landing;              // in full: the parameters are the point
+        a.style.color="inherit";
         tdL.appendChild(a);
+        tdL.className="url";
       } else { tdL.appendChild(document.createTextNode("—")); tdL.className="zero"; }
       tr.appendChild(tdL);
       tbody.appendChild(tr);
