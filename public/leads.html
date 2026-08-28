@@ -65,6 +65,8 @@ background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:h
 .tile .n{font-size:13px;color:var(--ink-2)}
 .tscroll{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--surface);margin-top:14px}
 table{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
+#leads-wrap table{min-width:1040px}
+#leads-wrap td{white-space:nowrap}
 th,td{padding:9px 13px;text-align:right;border-bottom:1px solid var(--rule-soft)}
 th{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
 font-weight:500;border-bottom:1px solid var(--rule);white-space:nowrap}
@@ -139,6 +141,11 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
     <section>
       <h2 id="centre-title">By centre</h2>
       <div id="centre-wrap"></div>
+    </section>
+    <section>
+      <h2 id="leads-title">The leads themselves</h2>
+      <p class="hint" id="leads-hint">Every lead behind the figures above. Selecting a month narrows this too.</p>
+      <div id="leads-wrap"></div>
     </section>
     <div class="method">
       <div class="eyebrow" style="margin-bottom:14px">How these numbers are made</div>
@@ -271,12 +278,62 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
     tbody.appendChild(t); table.appendChild(tbody); scroll.appendChild(table); host.appendChild(scroll);
   }
 
+  function renderLeads(){
+    var d=state.data, host=$("leads-wrap"); host.textContent="";
+    var rows=(d.leads||[]).filter(function(l){
+      return !state.selected || String(l.datum).slice(0,7)===state.selected;
+    });
+    $("leads-title").textContent = state.selected
+      ? "The leads themselves — "+monthLabel(state.selected) : "The leads themselves";
+    if(!rows.length){ host.appendChild(el("div","empty","No leads in this selection.")); return; }
+
+    // A very long list helps nobody in a browser; the totals above stay complete.
+    var capped = rows.length > 300;
+    var shown = capped ? rows.slice(0,300) : rows;
+    $("leads-hint").textContent = capped
+      ? "Showing the 300 most recent of "+rows.length+" leads. The totals above cover all of them."
+      : rows.length+" lead"+(rows.length===1?"":"s")+", newest first.";
+
+    var scroll=el("div","tscroll"), table=el("table"), thead=el("thead"), hr=el("tr");
+    ["Date","Name","Email","Centre","Channel","Code","Type","Landed on"].forEach(function(h){
+      hr.appendChild(el("th",null,h));
+    });
+    thead.appendChild(hr); table.appendChild(thead);
+    var tbody=el("tbody");
+    shown.forEach(function(l){
+      var tr=el("tr");
+      var dt=new Date(l.datum);
+      tr.appendChild(el("td",null, isNaN(dt) ? l.datum : dt.toLocaleDateString()+" "+dt.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})));
+      tr.appendChild(el("td",null,l.naam||"—"));
+      tr.appendChild(el("td",null,l.email||"—"));
+      tr.appendChild(el("td",null,titleCase(l.centrum)));
+      var ch=CHANNELS.filter(function(c){return c.key===l.kanaal;})[0];
+      var tdC=el("td");
+      var sw=el("i","swatch"); sw.style.background="var("+(ch?ch.v:"--c-none")+")";
+      tdC.appendChild(sw); tdC.appendChild(document.createTextNode(ch?ch.label:l.kanaal));
+      tdC.style.textAlign="left"; tr.appendChild(tdC);
+      tr.appendChild(el("td",null,l.code||"—"));
+      tr.appendChild(el("td",null,l.type));
+      var tdL=el("td"); tdL.style.textAlign="left";
+      if(l.landing){
+        var a=document.createElement("a");
+        a.href=l.landing; a.target="_blank"; a.rel="noopener noreferrer";
+        a.textContent=l.landing.length>60 ? l.landing.slice(0,60)+"…" : l.landing;
+        a.title=l.landing; a.style.color="inherit";
+        tdL.appendChild(a);
+      } else { tdL.appendChild(document.createTextNode("—")); tdL.className="zero"; }
+      tr.appendChild(tdL);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody); scroll.appendChild(table); host.appendChild(scroll);
+  }
+
   function select(k){
     state.selected = (state.selected===k) ? null : k;
     Array.prototype.forEach.call(document.querySelectorAll("tr.clickable"),function(tr){
       tr.setAttribute("aria-selected", tr.dataset.month===state.selected ? "true":"false");
     });
-    renderCentres();
+    renderCentres(); renderLeads();
   }
 
   function run(){
@@ -334,7 +391,7 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
           h.appendChild(w);
         }
 
-        renderMonths(); renderCentres();
+        renderMonths(); renderCentres(); renderLeads();
         $("report").className="";
         var opgehaald = d.opgehaaldOp ? new Date(d.opgehaaldOp) : new Date();
         $("status").textContent = "Last run " + opgehaald.toLocaleTimeString() +

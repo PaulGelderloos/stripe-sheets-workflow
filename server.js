@@ -105,7 +105,8 @@ async function leadsHubspotFetch(body, attempt = 0) {
 
 // One page of contacts at a time; HubSpot caps a search at 100 per call.
 async function leadsFetchContacts(from, toExclusive) {
-  const props = ["createdate", "leadsource_code", "centrum_naam", "lezing_datum_iso"];
+  const props = ["createdate", "leadsource_code", "centrum_naam", "lezing_datum_iso",
+                 "firstname", "lastname", "email", "landing_url"];
   const out = [];
   let after;
   for (let guard = 0; guard < 120; guard++) {
@@ -170,6 +171,7 @@ app.get("/leads/data", leadsAuth, async (req, res) => {
     const months = {};      // "2026-08" -> { ORG: n, ... , total }
     const centres = {};     // "2026-08" -> { amsterdam: { ORG: n, ..., total } }
     const unmapped = {};
+    const leads = [];       // the individual rows behind the totals
     let talks = 0, coded = 0;
 
     for (const c of wanted) {
@@ -187,6 +189,17 @@ app.get("/leads/data", leadsAuth, async (req, res) => {
       centres[month][centre][ch] = (centres[month][centre][ch] || 0) + 1;
       centres[month][centre].total++;
 
+      leads.push({
+        datum:   c.createdate || "",
+        naam:    [c.firstname, c.lastname].filter(Boolean).join(" "),
+        email:   c.email || "",
+        centrum: centre,
+        kanaal:  ch,
+        code:    String(c.leadsource_code || "").trim().toUpperCase(),
+        type:    c.lezing_datum_iso ? "Intro talk" : "Enquiry",
+        landing: c.landing_url || ""
+      });
+
       if (c.lezing_datum_iso) talks++;
       if (ch !== "NONE") coded++;
       const raw = String(c.leadsource_code || "").trim().toUpperCase();
@@ -200,7 +213,9 @@ app.get("/leads/data", leadsAuth, async (req, res) => {
       metCode: coded,
       maanden: months,
       centraPerMaand: centres,
-      onbekendeCodes: unmapped
+      onbekendeCodes: unmapped,
+      // Newest first, so the most recent arrivals are at the top of the list.
+      leads: leads.sort((x, y) => (x.datum < y.datum ? 1 : -1))
     };
     leadsCache.set(cacheKey, { at: Date.now(), data: antwoord });
     res.json(Object.assign({}, antwoord, {
