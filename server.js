@@ -161,7 +161,17 @@ app.get("/leads/data", leadsAuth, async (req, res) => {
   try {
     const contacts = await leadsFetchContacts(from, toEx);
 
-    const wanted = contacts.filter(c => {
+    // Test bookings are made with TST or TEST in a name field, the same
+    // convention the legacy dashboard filtered on. Counted and reported rather
+    // than silently dropped, so a real name that happens to contain "test"
+    // shows up as an unexplained gap instead of vanishing.
+    const isTest = c =>
+      /\b(tst|test)/i.test(`${c.firstname || ""} ${c.lastname || ""}`);
+
+    const echt = contacts.filter(c => !isTest(c));
+    const testsUitgesloten = contacts.length - echt.length;
+
+    const wanted = echt.filter(c => {
       const isTalk = !!c.lezing_datum_iso;
       if (type === "talk") return isTalk;
       if (type === "enq")  return !isTalk;
@@ -191,7 +201,6 @@ app.get("/leads/data", leadsAuth, async (req, res) => {
 
       leads.push({
         datum:   c.createdate || "",
-        naam:    [c.firstname, c.lastname].filter(Boolean).join(" "),
         email:   c.email || "",
         centrum: centre,
         kanaal:  ch,
@@ -209,6 +218,7 @@ app.get("/leads/data", leadsAuth, async (req, res) => {
     const antwoord = {
       from, to, type,
       totaal: wanted.length,
+      testsUitgesloten,
       introTalks: talks,
       metCode: coded,
       maanden: months,

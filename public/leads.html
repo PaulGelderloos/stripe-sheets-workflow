@@ -65,7 +65,7 @@ background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:h
 .tile .n{font-size:13px;color:var(--ink-2)}
 .tscroll{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--surface);margin-top:14px}
 table{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
-#leads-wrap table{min-width:1040px}
+#leads-wrap table{min-width:940px}
 #leads-wrap td{white-space:nowrap}
 th,td{padding:9px 13px;text-align:right;border-bottom:1px solid var(--rule-soft)}
 th{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
@@ -295,7 +295,7 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
       : rows.length+" lead"+(rows.length===1?"":"s")+", newest first.";
 
     var scroll=el("div","tscroll"), table=el("table"), thead=el("thead"), hr=el("tr");
-    ["Date","Name","Email","Centre","Channel","Code","Type","Landed on"].forEach(function(h){
+    ["Date","Email","Centre","Channel","Code","Type","Landed on"].forEach(function(h){
       hr.appendChild(el("th",null,h));
     });
     thead.appendChild(hr); table.appendChild(thead);
@@ -304,7 +304,6 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
       var tr=el("tr");
       var dt=new Date(l.datum);
       tr.appendChild(el("td",null, isNaN(dt) ? l.datum : dt.toLocaleDateString()+" "+dt.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})));
-      tr.appendChild(el("td",null,l.naam||"—"));
       tr.appendChild(el("td",null,l.email||"—"));
       tr.appendChild(el("td",null,titleCase(l.centrum)));
       var ch=CHANNELS.filter(function(c){return c.key===l.kanaal;})[0];
@@ -381,6 +380,14 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
           g.appendChild(el("div","tag","Fully coded"));
           g.appendChild(el("p",null,"Every lead in this period carries a campaign code."));
           h.appendChild(g);
+        }
+        if(d.testsUitgesloten){
+          var t=el("div","notice warn");
+          t.appendChild(el("div","tag","Test leads"));
+          t.appendChild(el("p",null, d.testsUitgesloten+" lead"+(d.testsUitgesloten===1?"":"s")+
+            " with TST or TEST in a name field "+(d.testsUitgesloten===1?"was":"were")+
+            " left out of every figure on this page."));
+          h.appendChild(t);
         }
         var un=Object.keys(d.onbekendeCodes||{});
         if(un.length){
