@@ -66,6 +66,7 @@ background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:h
 .tscroll{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--surface);margin-top:14px}
 table{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
 #leads-wrap table{min-width:720px}
+.sec-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
 #leads-wrap td{white-space:nowrap}
 /* The landing URL is the whole point of this table, so it wraps inside its own
    cell rather than forcing the page sideways or hiding in a tooltip. */
@@ -147,7 +148,10 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
       <div id="centre-wrap"></div>
     </section>
     <section>
-      <h2 id="leads-title">The leads themselves</h2>
+      <div class="sec-row">
+        <h2 id="leads-title">The leads themselves</h2>
+        <button class="ghost" id="download">Download CSV</button>
+      </div>
       <p class="hint" id="leads-hint">Every lead behind the figures above. Selecting a month narrows this too.</p>
       <div id="leads-wrap"></div>
     </section>
@@ -292,10 +296,10 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
     if(!rows.length){ host.appendChild(el("div","empty","No leads in this selection.")); return; }
 
     // A very long list helps nobody in a browser; the totals above stay complete.
-    var capped = rows.length > 300;
-    var shown = capped ? rows.slice(0,300) : rows;
+    var capped = rows.length > 25;
+    var shown = capped ? rows.slice(0,25) : rows;
     $("leads-hint").textContent = capped
-      ? "Showing the 300 most recent of "+rows.length+" leads. The totals above cover all of them."
+      ? "The 25 most recent of "+rows.length+" leads. Download the CSV for all of them."
       : rows.length+" lead"+(rows.length===1?"":"s")+", newest first.";
 
     var scroll=el("div","tscroll"), table=el("table"), thead=el("thead"), hr=el("tr");
@@ -432,6 +436,13 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
     });
   });
   $("run").addEventListener("click",run);
+  $("download").addEventListener("click",function(){
+    var from=$("from").value, to=$("to").value;
+    if(!from||!to) return;
+    // The file follows the controls, not the month you clicked: a month filter
+    // narrows the screen, the export gives you the period you asked for.
+    window.location.href = "/leads/csv?from="+from+"&to="+to+"&type="+state.type;
+  });
   run();
 })();
 </script>
