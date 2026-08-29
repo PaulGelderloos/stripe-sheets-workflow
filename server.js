@@ -250,11 +250,12 @@ app.get("/leads/data", leadsAuth, async (req, res) => {
   }
 });
 
-// Semicolon-separated with a byte-order mark: that is what Dutch Excel opens
-// cleanly on a double click. Commas would land every row in one column.
+// Comma-separated with a byte-order mark. Semicolons suit a Dutch Excel but
+// left every row in one column for the people actually reading this, and the
+// comma is the standard the format is named after.
 function csvVeld(v) {
   const t = String(v == null ? "" : v);
-  return /[";\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
 }
 
 app.get("/leads/csv", leadsAuth, async (req, res) => {
@@ -263,10 +264,10 @@ app.get("/leads/csv", leadsAuth, async (req, res) => {
   try {
     const d = await leadsRapport(p.from, p.to, p.type);
     const kop = ["Datum", "Centrum", "Kanaal", "Code", "Type", "Landingspagina"];
-    const regels = [kop.join(";")].concat((d.leads || []).map(l => [
+    const regels = [kop.join(",")].concat((d.leads || []).map(l => [
       l.datum ? new Date(l.datum).toISOString().replace("T", " ").slice(0, 16) : "",
       l.centrum, l.kanaal, l.code, l.type, l.landing
-    ].map(csvVeld).join(";")));
+    ].map(csvVeld).join(",")));
 
     const naam = `tm-leads_${p.from}_${p.to}${p.type === "all" ? "" : "_" + p.type}.csv`;
     res.set("Content-Type", "text/csv; charset=utf-8");
