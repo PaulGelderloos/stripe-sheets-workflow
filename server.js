@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v21" });
+  res.json({ status: "ok", version: "v22" });
 });
 
 // ── Attribution fallbacks ──────────────────────────────
