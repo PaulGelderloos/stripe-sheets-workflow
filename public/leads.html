@@ -67,6 +67,9 @@ background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:h
 table{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
 #leads-wrap table{min-width:720px}
 .sec-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.checkbox{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--ink-2);
+  padding:8px 0;text-transform:none;letter-spacing:0;font-weight:300;cursor:pointer}
+tr.is-test td{color:var(--accent-ink)}
 #leads-wrap td{white-space:nowrap}
 /* The landing URL is the whole point of this table, so it wraps inside its own
    cell rather than forcing the page sideways or hiding in a tooltip. */
@@ -125,6 +128,9 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
         <button data-type="talk" aria-pressed="false">Intro talks</button>
         <button data-type="enq" aria-pressed="false">Enquiries</button>
       </div>
+    </div>
+    <div class="ctl"><label>Test bookings</label>
+      <label class="checkbox"><input type="checkbox" id="tests"> Include test bookings</label>
     </div>
     <div class="ctl"><label>&nbsp;</label><button id="run">Run report</button></div>
   </div>
@@ -309,7 +315,7 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
     thead.appendChild(hr); table.appendChild(thead);
     var tbody=el("tbody");
     shown.forEach(function(l){
-      var tr=el("tr");
+      var tr=el("tr", l.test ? "is-test" : null);
       var dt=new Date(l.datum);
       tr.appendChild(el("td",null, isNaN(dt) ? l.datum : dt.toLocaleDateString()+" "+dt.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})));
       tr.appendChild(el("td",null,titleCase(l.centrum)));
@@ -319,7 +325,7 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
       tdC.appendChild(sw); tdC.appendChild(document.createTextNode(ch?ch.label:l.kanaal));
       tdC.style.textAlign="left"; tr.appendChild(tdC);
       tr.appendChild(el("td",null,l.code||"—"));
-      tr.appendChild(el("td",null,l.type));
+      tr.appendChild(el("td",null, l.test ? l.type+" · test" : l.type));
       var tdL=el("td"); tdL.style.textAlign="left";
       if(l.landing){
         var a=document.createElement("a");
@@ -350,7 +356,7 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
     $("run").disabled=true; $("status").className="status";
     $("status").textContent="Reading HubSpot…"; $("gate").textContent="";
 
-    fetch("/leads/data?from="+from+"&to="+to+"&type="+state.type,{credentials:"same-origin"})
+    fetch("/leads/data?from="+from+"&to="+to+"&type="+state.type+($("tests").checked?"&tests=1":""),{credentials:"same-origin"})
       .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }); })
       .then(function(d){
         state.data=d; state.selected=null;
@@ -389,13 +395,19 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
           g.appendChild(el("p",null,"Every lead in this period carries a campaign code."));
           h.appendChild(g);
         }
-        if(d.testsUitgesloten){
+        if(d.metTests){
           var t=el("div","notice warn");
-          t.appendChild(el("div","tag","Test leads"));
-          t.appendChild(el("p",null, d.testsUitgesloten+" lead"+(d.testsUitgesloten===1?"":"s")+
+          t.appendChild(el("div","tag","Tests included"));
+          t.appendChild(el("p",null,"Test bookings are counted in every figure on this page "+
+            "and marked in the list below. Untick the box for the real numbers."));
+          h.appendChild(t);
+        } else if(d.testsUitgesloten){
+          var t2=el("div","notice warn");
+          t2.appendChild(el("div","tag","Test leads"));
+          t2.appendChild(el("p",null, d.testsUitgesloten+" lead"+(d.testsUitgesloten===1?"":"s")+
             " with TST or TEST in a name field "+(d.testsUitgesloten===1?"was":"were")+
             " left out of every figure on this page."));
-          h.appendChild(t);
+          h.appendChild(t2);
         }
         var un=Object.keys(d.onbekendeCodes||{});
         if(un.length){
@@ -441,7 +453,7 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
     if(!from||!to) return;
     // The file follows the controls, not the month you clicked: a month filter
     // narrows the screen, the export gives you the period you asked for.
-    window.location.href = "/leads/csv?from="+from+"&to="+to+"&type="+state.type;
+    window.location.href = "/leads/csv?from="+from+"&to="+to+"&type="+state.type+($("tests").checked?"&tests=1":"");
   });
   run();
 })();

@@ -141,11 +141,11 @@ const LEADS_CACHE_MS = 5 * 60 * 1000;
 
 // Both the on-screen report and the CSV export go through here, so the file
 // can never disagree with the figures on the page.
-async function leadsRapport(from, to, type) {
+async function leadsRapport(from, to, type, metTests) {
   // End date inclusive: shift a day so the whole final day counts.
   const toEx = new Date(Date.parse(to) + 86400000).toISOString().slice(0, 10);
 
-  const cacheKey = `${from}|${to}|${type}`;
+  const cacheKey = `${from}|${to}|${type}|${metTests ? "met" : "zonder"}tests`;
   const hit = leadsCache.get(cacheKey);
   if (hit && Date.now() - hit.at < LEADS_CACHE_MS) {
     return Object.assign({}, hit.data, {
@@ -163,7 +163,9 @@ async function leadsRapport(from, to, type) {
     const isTest = c =>
       /\b(tst|test)/i.test(`${c.firstname || ""} ${c.lastname || ""}`);
 
-    const echt = contacts.filter(c => !isTest(c));
+    // Kept in when the report is run with tests included, so someone checking
+    // their own test booking can watch it arrive instead of guessing.
+    const echt = metTests ? contacts : contacts.filter(c => !isTest(c));
     const testsUitgesloten = contacts.length - echt.length;
 
     const wanted = echt.filter(c => {
@@ -200,6 +202,7 @@ async function leadsRapport(from, to, type) {
         kanaal:  ch,
         code:    String(c.leadsource_code || "").trim().toUpperCase(),
         type:    c.lezing_datum_iso ? "Intro talk" : "Enquiry",
+        test:    isTest(c),
         landing: c.landing_url || ""
       });
 
@@ -213,6 +216,7 @@ async function leadsRapport(from, to, type) {
       from, to, type,
       totaal: wanted.length,
       testsUitgesloten,
+      metTests: !!metTests,
       introTalks: talks,
       metCode: coded,
       maanden: months,
@@ -236,14 +240,14 @@ function leadsGeldigeDatums(req) {
     return { fout: "Geef from en to op als JJJJ-MM-DD." };
   }
   if (from > to) return { fout: "De begindatum ligt na de einddatum." };
-  return { from, to, type };
+  return { from, to, type, metTests: String(req.query.tests || "") === "1" };
 }
 
 app.get("/leads/data", leadsAuth, async (req, res) => {
   const p = leadsGeldigeDatums(req);
   if (p.fout) return res.status(400).json({ error: p.fout });
   try {
-    res.json(await leadsRapport(p.from, p.to, p.type));
+    res.json(await leadsRapport(p.from, p.to, p.type, p.metTests));
   } catch (err) {
     console.error("Leads report:", err.message);
     res.status(502).json({ error: "HubSpot antwoordde niet: " + err.message });
@@ -262,14 +266,14 @@ app.get("/leads/csv", leadsAuth, async (req, res) => {
   const p = leadsGeldigeDatums(req);
   if (p.fout) return res.status(400).type("text/plain").send(p.fout);
   try {
-    const d = await leadsRapport(p.from, p.to, p.type);
-    const kop = ["Datum", "Centrum", "Kanaal", "Code", "Type", "Landingspagina"];
+    const d = await leadsRapport(p.from, p.to, p.type, p.metTests);
+    const kop = ["Datum", "Centrum", "Kanaal", "Code", "Type", "Test", "Landingspagina"];
     const regels = [kop.join(",")].concat((d.leads || []).map(l => [
       l.datum ? new Date(l.datum).toISOString().replace("T", " ").slice(0, 16) : "",
-      l.centrum, l.kanaal, l.code, l.type, l.landing
+      l.centrum, l.kanaal, l.code, l.type, l.test ? "ja" : "", l.landing
     ].map(csvVeld).join(",")));
 
-    const naam = `tm-leads_${p.from}_${p.to}${p.type === "all" ? "" : "_" + p.type}.csv`;
+    const naam = `tm-leads_${p.from}_${p.to}${p.type === "all" ? "" : "_" + p.type}${p.metTests ? "_met-tests" : ""}.csv`;
     res.set("Content-Type", "text/csv; charset=utf-8");
     res.set("Content-Disposition", `attachment; filename="${naam}"`);
     res.send("\uFEFF" + regels.join("\r\n") + "\r\n");
