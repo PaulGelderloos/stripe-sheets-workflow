@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v20" });
+  res.json({ status: "ok", version: "v21" });
 });
 
 // ── Attribution fallbacks ──────────────────────────────
@@ -558,14 +558,16 @@ const CENTRA_LERAREN = [
   { stad: "alkmaar",           email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
   { stad: "almere",            email: "soma@xs4all.nl",                            leraar: "Wim" },
   { stad: "amersfoort",        email: "jans-jong@planet.nl",                       leraar: "Ton" },
+  // Deliberately not nationaal@ like the website shows: that inbox cannot
+  // notify itself, so Amsterdam's notification goes to Paul personally.
   { stad: "amsterdam",         email: "paul@gelderloos.com",                       leraar: "Paul" },
   { stad: "gaffelaarspad",     email: "paul@gelderloos.com",                       leraar: "Paul" },
   { stad: "apeldoorn",         email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
   { stad: "arnhem",            email: "charles.jung@tm.org",                       leraar: "Charles" },
-  { stad: "boxtel",            email: "riaholt@planet.nl",                         leraar: "Ab" },
+  { stad: "boxtel",            email: "tmwaalwijk@kpnmail.nl",                         leraar: "Ab" },
   { stad: "breda",             email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
   { stad: "den haag",          email: "mgrylyuk@gmail.com",                        leraar: "Mariya" },
-  { stad: "eindhoven",         email: "Jacques.huyghe@gusp.org",                   leraar: "Jacques" },
+  { stad: "eindhoven",         email: "eindhoven.tm@gmail.com",                   leraar: "Almar" },
   { stad: "emmen",             email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
   { stad: "enschede",          email: "ben.robijns@icloud.com",                    leraar: "Ben" },
   { stad: "groningen",         email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
@@ -573,10 +575,11 @@ const CENTRA_LERAREN = [
   { stad: "hengelo",           email: "ben.robijns@icloud.com",                    leraar: "Ben" },
   { stad: "hilversum",         email: "theo@xs.nl",                                leraar: "Theo" },
   { stad: "het gooi",          email: "theo@xs.nl",                                leraar: "Theo" },
-  { stad: "hertogenbosch",     email: "riaholt@planet.nl",                         leraar: "Ria" },
-  { stad: "den bosch",         email: "riaholt@planet.nl",                         leraar: "Ria" },
+  { stad: "hertogenbosch",     email: "tmwaalwijk@kpnmail.nl",                         leraar: "Ria" },
+  { stad: "den bosch",         email: "tmwaalwijk@kpnmail.nl",                         leraar: "Ria" },
   { stad: "leeuwarden",        email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
-  { stad: "lelystad",          email: "tm@lelystad.nl",                            leraar: "Marike" },
+  { stad: "lelystad",          email: "tmlelystad@gmail.com",                            leraar: "" },
+  { stad: "gerritsma",         email: "gerritsma.gj@gmail.com",                   leraar: "Gerrit Jan" },
   { stad: "maastricht",        email: "j.maenen@hetnet.nl",                        leraar: "Josine" },
   { stad: "valkenburg",        email: "j.maenen@hetnet.nl",                        leraar: "Josine" },
   { stad: "vlodrop",           email: "conny.postel@maharishi.net",                leraar: "Conny" },
@@ -586,9 +589,10 @@ const CENTRA_LERAREN = [
   { stad: "odili",             email: "charles.jung@tm.org",                       leraar: "Charles" },
   { stad: "rotterdam",         email: "geluca@hccnet.nl",                          leraar: "Gerrie" },
   { stad: "schiedam",          email: "geluca@hccnet.nl",                          leraar: "Gerrie" },
-  { stad: "tilburg",           email: "riaholt@planet.nl",                         leraar: "Ria" },
+  { stad: "tilburg",           email: "tmwaalwijk@kpnmail.nl",                         leraar: "Ria" },
+  { stad: "utrecht stad",      email: "ellesjongenelen@hotmail.com",               leraar: "Elles" },
   { stad: "utrecht",           email: "jans-jong@planet.nl",                       leraar: "Gerda" },
-  { stad: "waalwijk",          email: "riaholt@planet.nl",                         leraar: "Ria" },
+  { stad: "waalwijk",          email: "tmwaalwijk@kpnmail.nl",                         leraar: "Ria" },
   { stad: "wageningen",        email: "e.ruchtie@chello.nl",                       leraar: "Erno" },
   { stad: "wassenaar",         email: "riencalis@hotmail.com",                     leraar: "Rien" },
   { stad: "zeeland",           email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
@@ -599,12 +603,20 @@ const CENTRA_LERAREN = [
 ];
 
 function zoekLeraar(plaatsInstructie, centrum) {
-  const tekst = (plaatsInstructie || centrum || "").toLowerCase();
+  // Hyphens and spaces are interchangeable here: the website's slug says
+  // "west-brabant" where a course sheet says "West Brabant".
+  const vlak = (v) => String(v || "").toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ").trim();
+  const tekst = vlak(plaatsInstructie || centrum);
   if (!tekst) return { email: "", leraar: "" };
+  // Longest match wins. Matching in list order let "utrecht" swallow
+  // "utrecht stad", which is a different centre with a different teacher —
+  // and would do the same to any future centre whose name contains another.
+  let beste = null;
   for (const c of CENTRA_LERAREN) {
-    if (tekst.includes(c.stad)) return { email: c.email, leraar: c.leraar };
+    const stad = vlak(c.stad);
+    if (tekst.includes(stad) && (!beste || stad.length > vlak(beste.stad).length)) beste = c;
   }
-  return { email: "", leraar: "" };
+  return beste ? { email: beste.email, leraar: beste.leraar } : { email: "", leraar: "" };
 }
 
 // ── Aanvraag vanaf een centrumpagina ───────────────────
@@ -630,7 +642,7 @@ const CENTRUM_AANVRAAG = {
   "boxtel":               { naam: "Boxtel", email: "TMWaalwijk@kpnmail.nl" },
   "breda":                { naam: "Breda", email: "iwcvos@gmail.com" },
   "den-haag":             { naam: "Den Haag", email: "mgrylyuk@gmail.com" },
-  "eindhoven":            { naam: "Eindhoven", email: "ellmer@gmail.com" },
+  "eindhoven":            { naam: "Eindhoven", email: "eindhoven.tm@gmail.com" },
   "emmen":                { naam: "Emmen", email: "iwcvos@gmail.com" },
   "enschede":             { naam: "Enschede", email: "ben.robijns@icloud.com" },
   "groningen":            { naam: "Groningen", email: "iwcvos@gmail.com" },
@@ -639,7 +651,7 @@ const CENTRUM_AANVRAAG = {
   "het-gooi":             { naam: "Het Gooi", email: "theo@xs.nl" },
   "s-hertogenbosch":      { naam: "'s-Hertogenbosch", email: "TMWaalwijk@kpnmail.nl" },
   "leeuwarden":           { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
-  "lelystad":             { naam: "Lelystad", email: "pknibbeler@solcon.nl" },
+  "lelystad":             { naam: "Lelystad", email: "tmlelystad@gmail.com" },
   "lelystad-gerritsma":   { naam: "Lelystad - Gerritsma", email: "gerritsma.gj@gmail.com" },
   "maastricht-valkenburg":{ naam: "Maastricht-Valkenburg", email: "j.maenen@hetnet.nl" },
   "meru":                 { naam: "MERU", email: "conny.postel@maharishi.net" },
