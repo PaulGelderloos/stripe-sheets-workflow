@@ -18,6 +18,31 @@ app.get("/", (req, res) => {
   res.json({ status: "ok", version: "v19" });
 });
 
+// ── Attribution fallbacks ──────────────────────────────
+// Both website forms retry without the attribution fields when HubSpot refuses
+// a submission, so a visitor can never be blocked by tracking. Useful, but it
+// used to leave no trace: the lead simply arrived without a code and nobody
+// noticed for weeks. The forms now report each retry here.
+const attributieMislukt = [];       // newest first, capped
+const ATTRIBUTIE_LOG_MAX = 50;
+
+app.post("/attributie-mislukt", express.json({ limit: "16kb" }), (req, res) => {
+  const m = {
+    tijd:   new Date().toISOString(),
+    form:   String(req.body?.form || "onbekend").slice(0, 60),
+    reden:  String(req.body?.reden || "").slice(0, 500),
+    pagina: String(req.body?.pagina || "").slice(0, 300),
+  };
+  attributieMislukt.unshift(m);
+  attributieMislukt.length = Math.min(attributieMislukt.length, ATTRIBUTIE_LOG_MAX);
+  console.warn(`ATTRIBUTIE GEVALLEN — formulier ${m.form} op ${m.pagina}: ${m.reden}`);
+  res.status(204).end();               // the form is not waiting for us
+});
+
+app.get("/attributie-mislukt", leadsAuth, (req, res) => {
+  res.json({ aantal: attributieMislukt.length, laatste: attributieMislukt });
+});
+
 // ── Leads report ───────────────────────────────────────
 // A hosted version of the leads dashboard, so the marketing team can open it
 // themselves instead of asking for a copy. Reads HubSpot server-side with the
