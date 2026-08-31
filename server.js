@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v19" });
+  res.json({ status: "ok", version: "v20" });
 });
 
 // ── Attribution fallbacks ──────────────────────────────
@@ -606,6 +606,164 @@ function zoekLeraar(plaatsInstructie, centrum) {
   }
   return { email: "", leraar: "" };
 }
+
+// ── Aanvraag vanaf een centrumpagina ───────────────────
+// An enquiry filled in on a centre page belongs to that centre's teacher, not
+// to the national inbox. The page sends only which centre it is on; the
+// recipient is resolved here from CENTRA_LERAREN above. That is deliberate:
+// accepting an address from the browser would turn this into an open mail
+// relay for anyone who found the endpoint.
+const AANVRAAG_FALLBACK = "nationaal@transcendentemeditatie.com";
+
+// Mirrors the CENTRA list in centrum-pagina.html — deliberately its own map
+// rather than reusing CENTRA_LERAREN below, which serves course notifications
+// and disagrees with the website about nine centres. An enquiry goes to the
+// teacher the visitor was just reading about. Change this together with the
+// template; the two must not drift.
+const CENTRUM_AANVRAAG = {
+  "alkmaar":              { naam: "Alkmaar", email: "iwcvos@gmail.com" },
+  "almere":               { naam: "Almere", email: "soma@xs4all.nl" },
+  "amersfoort":           { naam: "Amersfoort", email: "jans-jong@planet.nl" },
+  "amsterdam":            { naam: "Amsterdam", email: "nationaal@transcendentemeditatie.com" },
+  "apeldoorn":            { naam: "Apeldoorn", email: "iwcvos@gmail.com" },
+  "arnhem":               { naam: "Arnhem", email: "charles.jung@tm.org" },
+  "boxtel":               { naam: "Boxtel", email: "TMWaalwijk@kpnmail.nl" },
+  "breda":                { naam: "Breda", email: "iwcvos@gmail.com" },
+  "den-haag":             { naam: "Den Haag", email: "mgrylyuk@gmail.com" },
+  "eindhoven":            { naam: "Eindhoven", email: "ellmer@gmail.com" },
+  "emmen":                { naam: "Emmen", email: "iwcvos@gmail.com" },
+  "enschede":             { naam: "Enschede", email: "ben.robijns@icloud.com" },
+  "groningen":            { naam: "Groningen", email: "iwcvos@gmail.com" },
+  "heerlen":              { naam: "Heerlen", email: "josidhats@gmail.com" },
+  "hengelo-enschede":     { naam: "Hengelo – Enschede", email: "ben.robijns@icloud.com" },
+  "het-gooi":             { naam: "Het Gooi", email: "theo@xs.nl" },
+  "s-hertogenbosch":      { naam: "'s-Hertogenbosch", email: "TMWaalwijk@kpnmail.nl" },
+  "leeuwarden":           { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
+  "lelystad":             { naam: "Lelystad", email: "pknibbeler@solcon.nl" },
+  "lelystad-gerritsma":   { naam: "Lelystad - Gerritsma", email: "gerritsma.gj@gmail.com" },
+  "maastricht-valkenburg":{ naam: "Maastricht-Valkenburg", email: "j.maenen@hetnet.nl" },
+  "meru":                 { naam: "MERU", email: "conny.postel@maharishi.net" },
+  "nijmegen":             { naam: "Nijmegen", email: "charles.jung@tm.org" },
+  "roermond":             { naam: "Roermond - St. Odiliënberg", email: "charles.jung@tm.org" },
+  "rotterdam":            { naam: "Rotterdam", email: "geluca@hccnet.nl" },
+  "tilburg":              { naam: "Tilburg", email: "TMWaalwijk@kpnmail.nl" },
+  "utrecht":              { naam: "Utrecht", email: "jans-jong@planet.nl" },
+  "utrecht-stad":         { naam: "Utrecht Stad", email: "ellesjongenelen@hotmail.com" },
+  "waalwijk":             { naam: "Waalwijk", email: "TMWaalwijk@kpnmail.nl" },
+  "wageningen":           { naam: "Wageningen", email: "e.ruchtie@chello.nl" },
+  "wassenaar":            { naam: "Wassenaar", email: "riencalis@hotmail.com" },
+  "west-brabant":         { naam: "West-Brabant", email: "iwcvos@gmail.com" },
+  "zeeland":              { naam: "Zeeland", email: "iwcvos@gmail.com" },
+  "zwolle":               { naam: "Zwolle", email: "iwcvos@gmail.com" },
+};
+const aanvraagLog = [];              // newest first, capped; no personal data
+const AANVRAAG_LOG_MAX = 50;
+const aanvraagTellers = new Map();   // ip → { tot, aantal }
+
+function aanvraagTeVaak(ip) {
+  const nu = Date.now();
+  const t = aanvraagTellers.get(ip);
+  if (!t || nu > t.tot) {
+    aanvraagTellers.set(ip, { tot: nu + 10 * 60 * 1000, aantal: 1 });
+    return false;
+  }
+  t.aantal += 1;
+  return t.aantal > 10;
+}
+
+function escHtml(v) {
+  return String(v == null ? "" : v)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+app.post("/aanvraag", express.json({ limit: "16kb" }), (req, res) => {
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || "";
+  if (aanvraagTeVaak(ip)) {
+    // Logged, not silently dropped: a refused notification is a teacher who
+    // never hears about a lead, which is the very thing this endpoint fixes.
+    console.warn(`AANVRAAG geweigerd — te veel verzoeken van ${ip}`);
+    aanvraagLog.unshift({ tijd: new Date().toISOString(), centrum: String(req.body?.centrum || "?").slice(0, 60),
+                          naar: "", bekend: false, status: "geweigerd: snelheidslimiet" });
+    aanvraagLog.length = Math.min(aanvraagLog.length, AANVRAAG_LOG_MAX);
+    return res.status(429).end();
+  }
+
+  const b = req.body || {};
+  const centrumSlug = String(b.centrum || "").slice(0, 60).toLowerCase();
+  // Fall back to the course-notification list, then to the national inbox: an
+  // enquiry must always reach somebody, even from a centre added to the site
+  // but not yet to the map above.
+  const gevonden  = CENTRUM_AANVRAAG[centrumSlug]
+                 || zoekLeraar(centrumSlug.replace(/-/g, " "), "")
+                 || null;
+  const ontvanger = (gevonden && gevonden.email) || AANVRAAG_FALLBACK;
+
+  // The visitor is not waiting on the teacher's mail — answer first, send after.
+  res.status(202).end();
+
+  const isEN   = String(b.taal || "nl") === "en";
+  const naam   = `${String(b.voornaam || "").slice(0, 80)} ${String(b.achternaam || "").slice(0, 80)}`.trim();
+  const centrumLabel = (gevonden && gevonden.naam)
+    || (centrumSlug ? centrumSlug.charAt(0).toUpperCase() + centrumSlug.slice(1).replace(/-/g, " ") : "onbekend");
+
+  const rij = (label, waarde) => waarde
+    ? `<tr><td style="padding:6px 12px 6px 0;color:#888;font-size:13px;white-space:nowrap;">${escHtml(label)}</td>
+           <td style="padding:6px 0;color:#2d2d3a;font-size:14px;">${escHtml(waarde)}</td></tr>`
+    : "";
+
+  const html = `<!DOCTYPE html><html><body style="margin:0;background:#f6f5f2;">
+<div style="max-width:560px;margin:0 auto;padding:32px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <div style="background:#fff;border-radius:10px;padding:28px;">
+    <h2 style="margin:0 0 4px;color:#2d2d3a;font-size:19px;">Nieuwe aanvraag via de website</h2>
+    <p style="margin:0 0 20px;color:#888;font-size:13px;">
+      Centrumpagina ${escHtml(centrumLabel)}${isEN ? " — ingevuld op de Engelse pagina" : ""}
+    </p>
+    <table style="border-collapse:collapse;width:100%;">
+      ${rij("Naam", naam)}
+      ${rij("E-mail", b.email)}
+      ${rij("Telefoon", b.telefoon)}
+      ${rij("Postcode", b.postcode)}
+      ${rij("Al TM geleerd?", b.al_tm_geleerd)}
+      ${rij("Bericht", b.bericht)}
+      ${rij("Pagina", b.pagina)}
+    </table>
+    <p style="color:#888;font-size:12px;margin-top:24px;padding-top:16px;border-top:1px solid #eee;text-align:center;">
+      Automatisch bericht van TM Nederland
+    </p>
+  </div>
+</div>
+</body></html>`;
+
+  const boeking = {
+    tijd:    new Date().toISOString(),
+    centrum: centrumLabel,
+    naar:    ontvanger,
+    bekend:  Boolean(gevonden && gevonden.email),
+    status:  "verstuurd",
+  };
+
+  sendMail({
+    to:      ontvanger,
+    subject: `Nieuwe aanvraag: ${naam || "onbekend"} — ${centrumLabel}`,
+    html,
+  })
+    .then(() => {
+      console.log(`\u2713 Aanvraag ${centrumLabel} \u2192 ${ontvanger}`);
+    })
+    .catch((e) => {
+      boeking.status = `mislukt: ${String(e.message || e).slice(0, 200)}`;
+      console.error(`AANVRAAG MISLUKT — ${centrumLabel} \u2192 ${ontvanger}: ${e.message || e}`);
+    })
+    .finally(() => {
+      aanvraagLog.unshift(boeking);
+      aanvraagLog.length = Math.min(aanvraagLog.length, AANVRAAG_LOG_MAX);
+    });
+});
+
+app.get("/aanvraag", leadsAuth, (req, res) => {
+  res.json({ aantal: aanvraagLog.length, laatste: aanvraagLog });
+});
 
 // ── Stripe setup (alleen als keys aanwezig) ────────────
 let stripe, syncToGoogleSheets;
