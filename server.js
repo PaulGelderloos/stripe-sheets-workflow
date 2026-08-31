@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v22" });
+  res.json({ status: "ok", version: "v23" });
 });
 
 // ── Attribution fallbacks ──────────────────────────────
@@ -626,6 +626,124 @@ function zoekLeraar(plaatsInstructie, centrum) {
 // accepting an address from the browser would turn this into an open mail
 // relay for anyone who found the endpoint.
 const AANVRAAG_FALLBACK = "nationaal@transcendentemeditatie.com";
+// An enquiry on a general page — the homepage, the lezingen page — has no
+// centre attached, so until now it reached nobody: 31 of 42 such enquiries
+// carried no teacher at all. The first two digits of a Dutch postcode place
+// the visitor well enough to hand them to the nearest centre. Drafted from
+// the centre coordinates on the site and the PDOK area centroids; Paul owns
+// the corrections, and each one is a single line here.
+const POSTCODE_CENTRUM = {
+  "10": { naam: "Amsterdam", email: "nationaal@transcendentemeditatie.com" },
+  "11": { naam: "Amsterdam", email: "nationaal@transcendentemeditatie.com" },
+  "12": { naam: "Almere", email: "soma@xs4all.nl" },
+  "13": { naam: "Almere", email: "soma@xs4all.nl" },
+  "14": { naam: "Alkmaar", email: "iwcvos@gmail.com" },
+  "15": { naam: "Alkmaar", email: "iwcvos@gmail.com" },
+  "16": { naam: "Alkmaar", email: "iwcvos@gmail.com" },
+  "17": { naam: "Alkmaar", email: "iwcvos@gmail.com" },
+  "18": { naam: "Alkmaar", email: "iwcvos@gmail.com" },
+  "19": { naam: "Alkmaar", email: "iwcvos@gmail.com" },
+  "20": { naam: "Amsterdam", email: "nationaal@transcendentemeditatie.com" },
+  "21": { naam: "Amsterdam", email: "nationaal@transcendentemeditatie.com" },
+  "22": { naam: "Wassenaar", email: "riencalis@hotmail.com" },
+  "23": { naam: "Wassenaar", email: "riencalis@hotmail.com" },
+  "24": { naam: "Wassenaar", email: "riencalis@hotmail.com" },
+  "25": { naam: "Den Haag", email: "mgrylyuk@gmail.com" },
+  "26": { naam: "Den Haag", email: "mgrylyuk@gmail.com" },
+  "27": { naam: "Wassenaar", email: "riencalis@hotmail.com" },
+  "28": { naam: "Rotterdam", email: "geluca@hccnet.nl" },
+  "29": { naam: "Rotterdam", email: "geluca@hccnet.nl" },
+  "30": { naam: "Rotterdam", email: "geluca@hccnet.nl" },
+  "31": { naam: "Rotterdam", email: "geluca@hccnet.nl" },
+  "32": { naam: "Rotterdam", email: "geluca@hccnet.nl" },
+  "33": { naam: "Rotterdam", email: "geluca@hccnet.nl" },
+  "34": { naam: "Utrecht", email: "jans-jong@planet.nl" },
+  "35": { naam: "Utrecht Stad", email: "ellesjongenelen@hotmail.com" },
+  "36": { naam: "Het Gooi", email: "theo@xs.nl" },
+  "37": { naam: "Apeldoorn", email: "iwcvos@gmail.com" },
+  "38": { naam: "Amersfoort", email: "jans-jong@planet.nl" },
+  "39": { naam: "Amersfoort", email: "jans-jong@planet.nl" },
+  "40": { naam: "Wageningen", email: "e.ruchtie@chello.nl" },
+  "41": { naam: "Utrecht Stad", email: "ellesjongenelen@hotmail.com" },
+  "42": { naam: "Utrecht", email: "jans-jong@planet.nl" },
+  "43": { naam: "Zeeland", email: "iwcvos@gmail.com" },
+  "44": { naam: "Zeeland", email: "iwcvos@gmail.com" },
+  "45": { naam: "Zeeland", email: "iwcvos@gmail.com" },
+  "46": { naam: "Breda", email: "iwcvos@gmail.com" },
+  "47": { naam: "Breda", email: "iwcvos@gmail.com" },
+  "48": { naam: "Breda", email: "iwcvos@gmail.com" },
+  "49": { naam: "West-Brabant", email: "iwcvos@gmail.com" },
+  "50": { naam: "Tilburg", email: "TMWaalwijk@kpnmail.nl" },
+  "51": { naam: "Tilburg", email: "TMWaalwijk@kpnmail.nl" },
+  "52": { naam: "'s-Hertogenbosch", email: "TMWaalwijk@kpnmail.nl" },
+  "53": { naam: "'s-Hertogenbosch", email: "TMWaalwijk@kpnmail.nl" },
+  "54": { naam: "Eindhoven", email: "eindhoven.tm@gmail.com" },
+  "55": { naam: "Eindhoven", email: "eindhoven.tm@gmail.com" },
+  "56": { naam: "Eindhoven", email: "eindhoven.tm@gmail.com" },
+  "57": { naam: "Eindhoven", email: "eindhoven.tm@gmail.com" },
+  "58": { naam: "Nijmegen", email: "charles.jung@tm.org" },
+  "59": { naam: "Roermond - St. Odiliënberg", email: "charles.jung@tm.org" },
+  "60": { naam: "Roermond - St. Odiliënberg", email: "charles.jung@tm.org" },
+  "61": { naam: "Roermond - St. Odiliënberg", email: "charles.jung@tm.org" },
+  "62": { naam: "Maastricht-Valkenburg", email: "j.maenen@hetnet.nl" },
+  "63": { naam: "Maastricht-Valkenburg", email: "j.maenen@hetnet.nl" },
+  "64": { naam: "Heerlen", email: "josidhats@gmail.com" },
+  "65": { naam: "Nijmegen", email: "charles.jung@tm.org" },
+  "66": { naam: "Wageningen", email: "e.ruchtie@chello.nl" },
+  "67": { naam: "Wageningen", email: "e.ruchtie@chello.nl" },
+  "68": { naam: "Arnhem", email: "charles.jung@tm.org" },
+  "69": { naam: "Apeldoorn", email: "iwcvos@gmail.com" },
+  "70": { naam: "Arnhem", email: "charles.jung@tm.org" },
+  "71": { naam: "Enschede", email: "ben.robijns@icloud.com" },
+  "72": { naam: "Apeldoorn", email: "iwcvos@gmail.com" },
+  "73": { naam: "Apeldoorn", email: "iwcvos@gmail.com" },
+  "74": { naam: "Apeldoorn", email: "iwcvos@gmail.com" },
+  "75": { naam: "Enschede", email: "ben.robijns@icloud.com" },
+  "76": { naam: "Hengelo – Enschede", email: "ben.robijns@icloud.com" },
+  "77": { naam: "Emmen", email: "iwcvos@gmail.com" },
+  "78": { naam: "Emmen", email: "iwcvos@gmail.com" },
+  "79": { naam: "Zwolle", email: "iwcvos@gmail.com" },
+  "80": { naam: "Zwolle", email: "iwcvos@gmail.com" },
+  "81": { naam: "Zwolle", email: "iwcvos@gmail.com" },
+  "82": { naam: "Lelystad - Gerritsma", email: "gerritsma.gj@gmail.com" },
+  "83": { naam: "Zwolle", email: "iwcvos@gmail.com" },
+  "84": { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
+  "85": { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
+  "86": { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
+  "87": { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
+  "88": { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
+  "89": { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
+  "90": { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
+  "91": { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
+  "92": { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
+  "93": { naam: "Groningen", email: "iwcvos@gmail.com" },
+  "94": { naam: "Groningen", email: "iwcvos@gmail.com" },
+  "95": { naam: "Emmen", email: "iwcvos@gmail.com" },
+  "96": { naam: "Groningen", email: "iwcvos@gmail.com" },
+  "97": { naam: "Groningen", email: "iwcvos@gmail.com" },
+  "98": { naam: "Groningen", email: "iwcvos@gmail.com" },
+  "99": { naam: "Groningen", email: "iwcvos@gmail.com" },
+};
+
+// Anything we cannot place — a foreign postcode (a tenth of them), a missing
+// one, or an enquiry written in English — goes to Amsterdam. The notification
+// goes to Paul rather than the national inbox, which would be mailing itself.
+// Two addresses on purpose: `email` is who gets the notification, `contact`
+// is what lands on the HubSpot record. The national inbox is the centre's
+// official address but cannot notify itself, so the mail goes to Paul while
+// the record still reads nationaal@ like every other Amsterdam enquiry.
+const AANVRAAG_ONBEKEND = {
+  naam:    "Amsterdam",
+  email:   "paul@gelderloos.com",
+  contact: "nationaal@transcendentemeditatie.com",
+};
+
+function zoekCentrumViaPostcode(postcode, taal) {
+  if (String(taal || "").toLowerCase() === "en") return AANVRAAG_ONBEKEND;
+  const cijfers = String(postcode || "").replace(/\s/g, "");
+  if (!/^[1-9][0-9]{3}/.test(cijfers)) return AANVRAAG_ONBEKEND;   // not a Dutch postcode
+  return POSTCODE_CENTRUM[cijfers.slice(0, 2)] || AANVRAAG_ONBEKEND;
+}
 
 // Mirrors the CENTRA list in centrum-pagina.html — deliberately its own map
 // rather than reusing CENTRA_LERAREN below, which serves course notifications
@@ -703,13 +821,17 @@ app.post("/aanvraag", express.json({ limit: "16kb" }), (req, res) => {
 
   const b = req.body || {};
   const centrumSlug = String(b.centrum || "").slice(0, 60).toLowerCase();
-  // Fall back to the course-notification list, then to the national inbox: an
-  // enquiry must always reach somebody, even from a centre added to the site
-  // but not yet to the map above.
-  const gevonden  = CENTRUM_AANVRAAG[centrumSlug]
-                 || zoekLeraar(centrumSlug.replace(/-/g, " "), "")
-                 || null;
+  // A centre page names its own centre. A general page cannot, so the
+  // postcode decides. Either way the recipient is resolved here and never
+  // taken from the browser.
+  const viaPagina = centrumSlug
+    ? (CENTRUM_AANVRAAG[centrumSlug] || zoekLeraar(centrumSlug.replace(/-/g, " "), ""))
+    : null;
+  const gevonden = (viaPagina && viaPagina.email)
+    ? viaPagina
+    : zoekCentrumViaPostcode(b.postcode, b.taal);
   const ontvanger = (gevonden && gevonden.email) || AANVRAAG_FALLBACK;
+  const viaPostcode = !(viaPagina && viaPagina.email);
 
   // The visitor is not waiting on the teacher's mail — answer first, send after.
   res.status(202).end();
@@ -718,6 +840,19 @@ app.post("/aanvraag", express.json({ limit: "16kb" }), (req, res) => {
   const naam   = `${String(b.voornaam || "").slice(0, 80)} ${String(b.achternaam || "").slice(0, 80)}`.trim();
   const centrumLabel = (gevonden && gevonden.naam)
     || (centrumSlug ? centrumSlug.charAt(0).toUpperCase() + centrumSlug.slice(1).replace(/-/g, " ") : "onbekend");
+  // Say honestly how this landed here. "Assigned on postcode" is only true
+  // when a postcode actually decided it; a foreign or missing one did not.
+  const pc = String(b.postcode || "").trim().toUpperCase();
+  const opPostcode = viaPostcode && gevonden !== AANVRAAG_ONBEKEND;
+  const herkomst = !viaPostcode
+    ? `Centrumpagina ${centrumLabel}`
+    : opPostcode
+      ? `Algemene pagina, toegewezen op postcode ${pc}`
+      : isEN
+        ? "Algemene pagina, Engelstalige aanvraag"
+        : pc
+          ? `Algemene pagina, geen Nederlandse postcode (${pc})`
+          : "Algemene pagina, geen postcode opgegeven";
 
   const rij = (label, waarde) => waarde
     ? `<tr><td style="padding:6px 12px 6px 0;color:#888;font-size:13px;white-space:nowrap;">${escHtml(label)}</td>
@@ -729,7 +864,7 @@ app.post("/aanvraag", express.json({ limit: "16kb" }), (req, res) => {
   <div style="background:#fff;border-radius:10px;padding:28px;">
     <h2 style="margin:0 0 4px;color:#2d2d3a;font-size:19px;">Nieuwe aanvraag via de website</h2>
     <p style="margin:0 0 20px;color:#888;font-size:13px;">
-      Centrumpagina ${escHtml(centrumLabel)}${isEN ? " — ingevuld op de Engelse pagina" : ""}
+      ${escHtml(herkomst)}${isEN ? " — ingevuld op de Engelse pagina" : ""}
     </p>
     <table style="border-collapse:collapse;width:100%;">
       ${rij("Naam", naam)}
@@ -771,7 +906,51 @@ app.post("/aanvraag", express.json({ limit: "16kb" }), (req, res) => {
       aanvraagLog.unshift(boeking);
       aanvraagLog.length = Math.min(aanvraagLog.length, AANVRAAG_LOG_MAX);
     });
+
+  if (viaPostcode && b.email) noteerCentrumOpContact(String(b.email).trim(), gevonden);
 });
+
+// A postcode-routed enquiry has no centre on it until we put one there, and
+// the form submission that creates the contact is still in flight when this
+// runs — hence the retries rather than a single lookup.
+async function noteerCentrumOpContact(email, centrum) {
+  const token = process.env.HUBSPOT_PRIVATE_APP_TOKEN;
+  if (!token || !email || !centrum) return;
+  const pauzes = [2000, 5000, 12000, 25000];
+  for (const pauze of pauzes) {
+    await new Promise((r) => setTimeout(r, pauze));
+    try {
+      const zoek = await fetch("https://api-eu1.hubapi.com/crm/v3/objects/contacts/search", {
+        method:  "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filterGroups: [{ filters: [{ propertyName: "email", operator: "EQ", value: email }] }],
+          properties: ["email"], limit: 1,
+        }),
+      });
+      const data = await zoek.json();
+      const id = data?.results?.[0]?.id;
+      if (!id) continue;
+      const zet = await fetch(`https://api-eu1.hubapi.com/crm/v3/objects/contacts/${id}`, {
+        method:  "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ properties: {
+          centrum_naam: centrum.naam,
+          leraar_email: centrum.contact || centrum.email,
+        } }),
+      });
+      if (zet.ok) {
+        console.log(`\u2713 Centrum op contact gezet: ${email} \u2192 ${centrum.naam}`);
+        return;
+      }
+      console.error(`Centrum op contact zetten mislukt (${zet.status}) voor ${email}`);
+      return;
+    } catch (e) {
+      console.error("noteerCentrumOpContact:", e.message);
+    }
+  }
+  console.warn(`Contact niet gevonden voor ${email}; centrum ${centrum.naam} niet vastgelegd`);
+}
 
 app.get("/aanvraag", leadsAuth, (req, res) => {
   res.json({ aantal: aanvraagLog.length, laatste: aanvraagLog });
