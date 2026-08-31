@@ -267,13 +267,13 @@ app.get("/leads/csv", leadsAuth, async (req, res) => {
   if (p.fout) return res.status(400).type("text/plain").send(p.fout);
   try {
     const d = await leadsRapport(p.from, p.to, p.type, p.metTests);
-    const kop = ["Datum", "Centrum", "Kanaal", "Code", "Type", "Test", "Landingspagina"];
+    const kop = ["Date", "Centre", "Channel", "Code", "Type", "Test", "Landing page"];
     const regels = [kop.join(",")].concat((d.leads || []).map(l => [
       l.datum ? new Date(l.datum).toISOString().replace("T", " ").slice(0, 16) : "",
-      l.centrum, l.kanaal, l.code, l.type, l.test ? "ja" : "", l.landing
+      l.centrum, l.kanaal, l.code, l.type, l.test ? "yes" : "", l.landing
     ].map(csvVeld).join(",")));
 
-    const naam = `tm-leads_${p.from}_${p.to}${p.type === "all" ? "" : "_" + p.type}${p.metTests ? "_met-tests" : ""}.csv`;
+    const naam = `tm-leads_${p.from}_${p.to}${p.type === "all" ? "" : "_" + p.type}${p.metTests ? "_with-tests" : ""}.csv`;
     res.set("Content-Type", "text/csv; charset=utf-8");
     res.set("Content-Disposition", `attachment; filename="${naam}"`);
     res.send("\uFEFF" + regels.join("\r\n") + "\r\n");
