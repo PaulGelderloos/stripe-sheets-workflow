@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v23" });
+  res.json({ status: "ok", version: "v24" });
 });
 
 // ── Attribution fallbacks ──────────────────────────────
@@ -705,7 +705,7 @@ const POSTCODE_CENTRUM = {
   "79": { naam: "Zwolle", email: "iwcvos@gmail.com" },
   "80": { naam: "Zwolle", email: "iwcvos@gmail.com" },
   "81": { naam: "Zwolle", email: "iwcvos@gmail.com" },
-  "82": { naam: "Lelystad - Gerritsma", email: "gerritsma.gj@gmail.com" },
+  "82": { naam: "Almere", email: "soma@xs4all.nl" },
   "83": { naam: "Zwolle", email: "iwcvos@gmail.com" },
   "84": { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
   "85": { naam: "Leeuwarden", email: "iwcvos@gmail.com" },
@@ -728,14 +728,11 @@ const POSTCODE_CENTRUM = {
 // Anything we cannot place — a foreign postcode (a tenth of them), a missing
 // one, or an enquiry written in English — goes to Amsterdam. The notification
 // goes to Paul rather than the national inbox, which would be mailing itself.
-// Two addresses on purpose: `email` is who gets the notification, `contact`
-// is what lands on the HubSpot record. The national inbox is the centre's
-// official address but cannot notify itself, so the mail goes to Paul while
-// the record still reads nationaal@ like every other Amsterdam enquiry.
+// Anything we cannot place goes to the national inbox rather than to anyone's
+// personal address — an enquiry is the organisation's, not one teacher's.
 const AANVRAAG_ONBEKEND = {
-  naam:    "Amsterdam",
-  email:   "paul@gelderloos.com",
-  contact: "nationaal@transcendentemeditatie.com",
+  naam:  "Amsterdam",
+  email: "nationaal@transcendentemeditatie.com",
 };
 
 function zoekCentrumViaPostcode(postcode, taal) {
@@ -854,6 +851,11 @@ app.post("/aanvraag", express.json({ limit: "16kb" }), (req, res) => {
           ? `Algemene pagina, geen Nederlandse postcode (${pc})`
           : "Algemene pagina, geen postcode opgegeven";
 
+  // Only suggest calling when there is a number to call.
+  const telefoonRegel = String(b.telefoon || "").trim()
+    ? "Bel deze persoon gerust even op &mdash; dat is vaak de stap die het meeste oplevert. "
+    : "";
+
   const rij = (label, waarde) => waarde
     ? `<tr><td style="padding:6px 12px 6px 0;color:#888;font-size:13px;white-space:nowrap;">${escHtml(label)}</td>
            <td style="padding:6px 0;color:#2d2d3a;font-size:14px;">${escHtml(waarde)}</td></tr>`
@@ -875,6 +877,16 @@ app.post("/aanvraag", express.json({ limit: "16kb" }), (req, res) => {
       ${rij("Bericht", b.bericht)}
       ${rij("Pagina", b.pagina)}
     </table>
+
+    <div style="margin-top:24px;padding:16px 18px;background:#faf8f3;border-left:3px solid #c9a84c;">
+      <p style="margin:0 0 8px;color:#2d2d3a;font-size:14px;font-weight:600;">Wat je kunt doen</p>
+      <p style="margin:0;color:#4a4a58;font-size:13px;line-height:1.6;">
+        ${telefoonRegel}Of stuur een mail met de link naar een gratis kennismakingslezing:
+        <a href="https://www.tm.nl/lezingen" style="color:#8f7130;">tm.nl/lezingen</a> &mdash;
+        daar staan de online lezingen en die op locatie bij elkaar.
+      </p>
+    </div>
+
     <p style="color:#888;font-size:12px;margin-top:24px;padding-top:16px;border-top:1px solid #eee;text-align:center;">
       Automatisch bericht van TM Nederland
     </p>
@@ -936,7 +948,7 @@ async function noteerCentrumOpContact(email, centrum) {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ properties: {
           centrum_naam: centrum.naam,
-          leraar_email: centrum.contact || centrum.email,
+          leraar_email: centrum.email,
         } }),
       });
       if (zet.ok) {
