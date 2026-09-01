@@ -25,7 +25,7 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v29",
+    version: "v30",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
                            gelezen: new Date(codeKaart.gelezen).toISOString(),
                            fout: codeKaart.fout || null }
@@ -108,7 +108,7 @@ const LEADS_CODE_CHANNEL = {
   CRM4059:"FB", CRM4060:"FB", CRM4065:"FB", CRM4202:"FB", CRM4203:"FB",
   CRM4204:"FB", CRM4205:"FB", CRM4206:"FB", CRM4207:"FB", CRM4208:"FB",
   CRM4209:"FB", CRM4210:"FB", CRM4211:"FB", CRM4212:"FB",
-  CRM4062:"TTOK",
+  CRM4062:"FB",
   CRM2082:"OTHER", CRM2083:"OTHER", CRM2084:"OTHER", CRM2085:"OTHER", CRM2086:"OTHER",
   CRM2090:"OTHER", CRM2091:"OTHER", CRM4064:"OTHER", CRM4201:"OTHER"
 };
@@ -142,10 +142,11 @@ const KANAAL_NAAR_KOLOM = {
   "bing":                           "OTHER",
 };
 
-// The sheet lists CRM4062 as META - Paid while naming it "TIKTOK - NL - TRIAL".
-// Following the channel column would move TikTok leads into Meta unnoticed, so
-// it stays TikTok until Mike says which of the two is wrong.
-const LEADS_CODE_OVERRIDE = { CRM4062: "TTOK" };
+// The Channel column decides, the Description does not — Mike's call, so that
+// the sheet is the single place a code's meaning is set. Nothing overrides it
+// today; CRM4062 reads META - Paid there while being described as a TikTok
+// trial, and follows the column like everything else.
+const LEADS_CODE_OVERRIDE = {};
 
 let codeKaart = null;          // { map, gelezen, bron }
 let codeKaartBezig = null;
@@ -163,9 +164,24 @@ async function leesCodeSheet() {
     scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   });
   const sheets = google.sheets({ version: "v4", auth: await auth.getClient() });
+
+  // Ask the file which tabs it has rather than assuming the name. Marketing
+  // owns this sheet, and a rename or a stray space would otherwise break the
+  // report with an error only we would ever see.
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: LEADS_SHEET_ID,
+    fields: "sheets.properties.title",
+  });
+  const titels = (meta.data.sheets || []).map((x) => x.properties.title);
+  const plat = (v) => String(v || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const tab = titels.find((t) => plat(t) === plat(LEADS_SHEET_TAB))
+           || titels.find((t) => plat(t).includes("leadsource"))
+           || titels[0];
+  if (!tab) throw new Error("geen tabbladen gevonden");
+
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: LEADS_SHEET_ID,
-    range: `'${LEADS_SHEET_TAB}'!A2:B`,
+    range: `'${tab.replace(/'/g, "''")}'!A:B`,
   });
   const map = {};
   const onbekendeKanalen = new Set();
@@ -179,7 +195,8 @@ async function leesCodeSheet() {
   if (onbekendeKanalen.size) {
     console.warn(`Leadsource-sheet: kanaal niet herkend voor ${[...onbekendeKanalen].join(", ")}`);
   }
-  if (!Object.keys(map).length) throw new Error("sheet leverde geen bruikbare codes");
+  if (!Object.keys(map).length) throw new Error(`tabblad "${tab}" leverde geen bruikbare codes`);
+  console.log(`Leadsource-sheet gelezen van tabblad "${tab}"`);
   return map;
 }
 
