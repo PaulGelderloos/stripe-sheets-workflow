@@ -320,7 +320,12 @@ app.get("/leads", leadsAuth, (req, res) => {
 // served instead of an empty list.
 const CURSUS_FEED_UPSTREAM =
   "https://script.google.com/macros/s/AKfycbxbbvduAy1JdKsZlU0BDQDo0Hq53iMzKyP3Er2eHwo_liFhKdbyREkdDN0Rjp9oLq7P_g/exec";
-const CURSUS_FEED_REFRESH_MS = 60 * 1000;
+// Purely a safety net: real bookings push a refresh immediately (see
+// /cursussen/ververs below), so this only needs to catch a missed push or
+// a manual edit straight in the sheet. Polling every minute for that was
+// overkill — nothing waits on this, it just keeps the memory copy from
+// drifting too far for too long.
+const CURSUS_FEED_REFRESH_MS = 15 * 60 * 1000;
 // Apps Script regularly needs 20-35 s and occasionally far longer, especially
 // just after a redeploy. A tight limit turned slow answers into failures for
 // no gain: nothing waits on this refresh, it runs in the background.
@@ -553,10 +558,15 @@ async function sendMail({ to, subject, html }) {
   console.log(`✓ E-mail verstuurd via Apps Script naar: ${to}`);
 }
 
-// Partner van een koppelaanmelding doorloopt nooit het HubSpot-boekformulier
-// (dat gebeurt alleen door de hoofdaanmelder, vóór betaling) en telt dus
-// nooit automatisch mee in de Plekken-kolom. Dit vult dat gat losstaand aan.
-async function verlaagPlekkenPartner({ centrum_naam, initiatie_datum, cursus_tijdslot }) {
+// Enige bron van waarheid voor plekken-aftelling. Was voorheen (ook) gekoppeld
+// aan het HubSpot-boekformulier vóór betaling, via een workflow-webhook naar
+// Apps Script — maar die schakel bleek onbetrouwbaar (mislukte 2 van de 3
+// keer, tien eerdere pogingen om dat te verhelpen losten het niet duurzaam
+// op). De Mollie-betaalwebhook hieronder is wél bewezen betrouwbaar (elk ander
+// veld van een betaling komt hier al correct binnen), dus die is nu de enige
+// trigger — voor zowel de hoofdaanmelder als de partner. Zie doPost() in
+// apps-script-cursussen/Code.js: de oude aftelling daar is uitgeschakeld.
+async function verlaagPlekken({ centrum_naam, initiatie_datum, cursus_tijdslot }) {
   let res = await fetch(APPS_SCRIPT_URL, {
     method:   "POST",
     headers:  { "Content-Type": "application/json" },
@@ -568,7 +578,7 @@ async function verlaagPlekkenPartner({ centrum_naam, initiatie_datum, cursus_tij
     if (location) res = await fetch(location, { method: "GET" });
   }
   if (!res.ok) throw new Error(`Apps Script plekken-relay fout: ${res.status} ${await res.text()}`);
-  console.log(`✓ Plekken verlaagd voor partner: ${centrum_naam} / ${initiatie_datum} / ${cursus_tijdslot}`);
+  console.log(`✓ Plekken verlaagd: ${centrum_naam} / ${initiatie_datum} / ${cursus_tijdslot}`);
 }
 
 // ── Leraar lookup via plaats/centrum ───────────────────
@@ -1693,7 +1703,7 @@ if (process.env.MOLLIE_API_KEY) {
           await setSoftOptIn(extraData.partner_email);
 
           try {
-            await verlaagPlekkenPartner({
+            await verlaagPlekken({
               centrum_naam:     centrum,
               initiatie_datum:  initiatieDatum,
               cursus_tijdslot:  extraData.partner_tijdslot || tijdslot,
@@ -1701,6 +1711,20 @@ if (process.env.MOLLIE_API_KEY) {
           } catch (plekErr) {
             console.error("Plekken niet bijgewerkt voor partner:", plekErr.message);
           }
+        }
+
+        // ── Plekken aftellen (hoofdaanmelder) ───────────────────
+        // Enige trigger sinds de betrouwbaarheidsfix hierboven bij
+        // verlaagPlekken() — het formulier-pad in Apps Script telt niet
+        // meer mee.
+        try {
+          await verlaagPlekken({
+            centrum_naam:     centrum,
+            initiatie_datum:  initiatieDatum,
+            cursus_tijdslot:  tijdslot,
+          });
+        } catch (plekErr) {
+          console.error("Plekken niet bijgewerkt voor hoofdaanmelder:", plekErr.message);
         }
 
         // ── Google Sheets ───────────────────────────────────────
