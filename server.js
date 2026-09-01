@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v24" });
+  res.json({ status: "ok", version: "v25" });
 });
 
 // ── Attribution fallbacks ──────────────────────────────
@@ -75,18 +75,27 @@ function leadsAuth(req, res, next) {
 //
 // code that is not listed still counts, under "OTHER", and is reported back so
 // a new code shows up instead of vanishing.
+// Copied from the "NL Leadsource Codes" tab of Mike's sheet, which is the
+// source of truth for what a CRM code means:
+// docs.google.com/spreadsheets/d/1ka9k89nFrMHI0Dka_mWO-UXTAoBi7lS4eLnZ94CxaEA
+// A code missing here falls to Other, so a campaign added there and not here
+// reads as an unattributed lead — the report names such codes rather than
+// letting them disappear quietly.
+// Google Ads (Grant) is deliberately Other, not GAP: Mike asked for grant
+// leads to stay out of the paid Google figure.
 const LEADS_CODE_CHANNEL = {
-  CRM1780:"GAP", CRM1781:"GAP", CRM1782:"GAP", CRM2379:"GAP",
-  CRM2082:"OTHER", CRM2083:"OTHER", CRM2084:"OTHER", CRM2085:"OTHER",
-  CRM2086:"OTHER", CRM2090:"OTHER", CRM2091:"OTHER",
-  CRM2101:"GAP", CRM2102:"GAP", CRM3992:"GAP", CRM3994:"GAP", CRM4058:"GAP",
-  CRM2055:"ORG", CRM2056:"ORG", CRM2096:"ORG", CRM2097:"ORG", CRM4200:"ORG",
-  CRM2773:"ORG", CRM2774:"ORG", CRM2775:"ORG", CRM2776:"ORG", CRM2777:"ORG",
+  CRM1780:"GAP", CRM1781:"GAP", CRM1782:"GAP", CRM2101:"GAP", CRM2102:"GAP",
+  CRM2379:"GAP", CRM3992:"GAP", CRM3994:"GAP", CRM4058:"GAP",
+  CRM2055:"ORG", CRM2056:"ORG", CRM2096:"ORG", CRM2097:"ORG", CRM2773:"ORG",
+  CRM2774:"ORG", CRM2775:"ORG", CRM2776:"ORG", CRM2777:"ORG", CRM4200:"ORG",
   CRM2158:"FB", CRM3351:"FB", CRM3352:"FB", CRM3353:"FB", CRM3354:"FB",
   CRM3355:"FB", CRM3537:"FB", CRM3850:"FB", CRM3958:"FB", CRM3969:"FB",
-  CRM4059:"FB", CRM4060:"FB", CRM4065:"FB",
+  CRM4059:"FB", CRM4060:"FB", CRM4065:"FB", CRM4202:"FB", CRM4203:"FB",
+  CRM4204:"FB", CRM4205:"FB", CRM4206:"FB", CRM4207:"FB", CRM4208:"FB",
+  CRM4209:"FB", CRM4210:"FB", CRM4211:"FB", CRM4212:"FB",
   CRM4062:"TTOK",
-  CRM4064:"OTHER", CRM4201:"OTHER"
+  CRM2082:"OTHER", CRM2083:"OTHER", CRM2084:"OTHER", CRM2085:"OTHER", CRM2086:"OTHER",
+  CRM2090:"OTHER", CRM2091:"OTHER", CRM4064:"OTHER", CRM4201:"OTHER"
 };
 
 function leadsChannel(code) {
