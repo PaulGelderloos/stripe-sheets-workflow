@@ -15,7 +15,17 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v26" });
+  // Whether the channel mapping is coming from the sheet is operational
+  // status, not customer data, so it is readable without the report password —
+  // otherwise the one thing worth checking after sharing the sheet is the one
+  // thing nobody can check.
+  res.json({
+    status:  "ok",
+    version: "v27",
+    codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
+                           gelezen: new Date(codeKaart.gelezen).toISOString() }
+                       : { bron: "nog niet gelezen" },
+  });
 });
 
 // ── Attribution fallbacks ──────────────────────────────
@@ -105,7 +115,11 @@ const LEADS_CODE_CHANNEL = {
 // yesterday's answer instead of no answer.
 const LEADS_SHEET_ID  = "1ka9k89nFrMHI0Dka_mWO-UXTAoBi7lS4eLnZ94CxaEA";
 const LEADS_SHEET_TAB = "NL Leadsource Codes";
-const LEADS_SHEET_TTL = 30 * 60 * 1000;
+const LEADS_SHEET_TTL      = 30 * 60 * 1000;
+// A failed read must not hold for the full half hour: the usual cause is that
+// the sheet has not been shared with us yet, and the moment it is, the report
+// should pick it up rather than serve the fallback for another 30 minutes.
+const LEADS_SHEET_FOUT_TTL = 2 * 60 * 1000;
 
 const KANAAL_NAAR_KOLOM = {
   "google ads (paid)":              "GAP",
@@ -165,7 +179,8 @@ async function leesCodeSheet() {
 }
 
 async function codeKaartOphalen() {
-  const vers = codeKaart && Date.now() - codeKaart.gelezen < LEADS_SHEET_TTL;
+  const ttl = codeKaart && codeKaart.bron === "sheet" ? LEADS_SHEET_TTL : LEADS_SHEET_FOUT_TTL;
+  const vers = codeKaart && Date.now() - codeKaart.gelezen < ttl;
   if (vers) return codeKaart;
   if (codeKaartBezig) return codeKaartBezig;
 
