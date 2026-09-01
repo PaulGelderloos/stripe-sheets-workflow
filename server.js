@@ -25,9 +25,10 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v28",
+    version: "v29",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
-                           gelezen: new Date(codeKaart.gelezen).toISOString() }
+                           gelezen: new Date(codeKaart.gelezen).toISOString(),
+                           fout: codeKaart.fout || null }
                        : { bron: "nog niet gelezen" },
   });
 });
@@ -199,7 +200,15 @@ async function codeKaartOphalen() {
       console.warn(`Leadsource-sheet onbereikbaar (${e.message}).` +
         (adres ? ` Deel het bestand met ${adres} (lezer).` : "") +
         " Rapport gebruikt de ingebouwde lijst.");
-      if (!codeKaart) codeKaart = { map: LEADS_CODE_CHANNEL, gelezen: Date.now(), bron: "ingebouwd" };
+      // Record the attempt and why it failed. Keeping the old timestamp made a
+      // stuck read look like one that simply had not come round yet.
+      const hadSheet = codeKaart && codeKaart.bron === "sheet";
+      codeKaart = {
+        map:     hadSheet ? codeKaart.map : LEADS_CODE_CHANNEL,
+        gelezen: Date.now(),
+        bron:    hadSheet ? "sheet" : "ingebouwd",
+        fout:    String(e.message || e).slice(0, 300),
+      };
     } finally {
       codeKaartBezig = null;
     }
