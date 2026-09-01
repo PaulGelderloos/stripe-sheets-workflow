@@ -19,9 +19,13 @@ app.get("/", (req, res) => {
   // status, not customer data, so it is readable without the report password —
   // otherwise the one thing worth checking after sharing the sheet is the one
   // thing nobody can check.
+  // Nudge a refresh if the cached answer is stale, but never wait on it: this
+  // route doubles as the health check, and a slow Sheets call must not read as
+  // a sick service. The next call shows the result.
+  codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v27",
+    version: "v28",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
                            gelezen: new Date(codeKaart.gelezen).toISOString() }
                        : { bron: "nog niet gelezen" },
