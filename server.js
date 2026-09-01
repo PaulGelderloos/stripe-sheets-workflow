@@ -15,7 +15,7 @@ app.use(cors());
 
 // ── Status check ───────────────────────────────────────
 app.get("/", (req, res) => {
-  res.json({ status: "ok", version: "v25" });
+  res.json({ status: "ok", version: "v26" });
 });
 
 // ── Attribution fallbacks ──────────────────────────────
@@ -98,10 +98,101 @@ const LEADS_CODE_CHANNEL = {
   CRM2090:"OTHER", CRM2091:"OTHER", CRM4064:"OTHER", CRM4201:"OTHER"
 };
 
-function leadsChannel(code) {
+// Read the mapping from Mike's sheet rather than trusting the copy above.
+// Marketing adds campaigns there; every hand-copy since has drifted, and a
+// code this map has not heard of is reported as an unattributed lead. The
+// built-in table stays as a fallback, so a sheet we cannot reach degrades to
+// yesterday's answer instead of no answer.
+const LEADS_SHEET_ID  = "1ka9k89nFrMHI0Dka_mWO-UXTAoBi7lS4eLnZ94CxaEA";
+const LEADS_SHEET_TAB = "NL Leadsource Codes";
+const LEADS_SHEET_TTL = 30 * 60 * 1000;
+
+const KANAAL_NAAR_KOLOM = {
+  "google ads (paid)":              "GAP",
+  "google ads (non attributed)":    "GAP",
+  "google ads (grant)":             "OTHER",  // Mike: out of the paid Google figure
+  "meta - paid":                    "FB",
+  "organic":                        "ORG",
+  "organic - google my business":   "ORG",
+  "tiktok":                         "TTOK",
+  "whatsapp":                       "OTHER",
+  "local centre promotion":         "OTHER",
+  "email marketing":                "OTHER",
+  "online referral":                "OTHER",
+  "instagram":                      "FB",
+  "bing":                           "OTHER",
+};
+
+// The sheet lists CRM4062 as META - Paid while naming it "TIKTOK - NL - TRIAL".
+// Following the channel column would move TikTok leads into Meta unnoticed, so
+// it stays TikTok until Mike says which of the two is wrong.
+const LEADS_CODE_OVERRIDE = { CRM4062: "TTOK" };
+
+let codeKaart = null;          // { map, gelezen, bron }
+let codeKaartBezig = null;
+
+function serviceAccountAdres() {
+  try { return JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT || "{}").client_email || ""; }
+  catch (e) { return ""; }
+}
+
+async function leesCodeSheet() {
+  const { google } = require("googleapis");
+  const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+  const auth = new google.auth.GoogleAuth({
+    credentials: creds,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+  });
+  const sheets = google.sheets({ version: "v4", auth: await auth.getClient() });
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: LEADS_SHEET_ID,
+    range: `'${LEADS_SHEET_TAB}'!A2:B`,
+  });
+  const map = {};
+  const onbekendeKanalen = new Set();
+  for (const [code, kanaal] of res.data.values || []) {
+    const c = String(code || "").trim().toUpperCase();
+    if (!/^CRM\d+$/.test(c)) continue;
+    const kolom = KANAAL_NAAR_KOLOM[String(kanaal || "").trim().toLowerCase()];
+    if (!kolom) { onbekendeKanalen.add(`${c}=${kanaal}`); continue; }
+    map[c] = LEADS_CODE_OVERRIDE[c] || kolom;
+  }
+  if (onbekendeKanalen.size) {
+    console.warn(`Leadsource-sheet: kanaal niet herkend voor ${[...onbekendeKanalen].join(", ")}`);
+  }
+  if (!Object.keys(map).length) throw new Error("sheet leverde geen bruikbare codes");
+  return map;
+}
+
+async function codeKaartOphalen() {
+  const vers = codeKaart && Date.now() - codeKaart.gelezen < LEADS_SHEET_TTL;
+  if (vers) return codeKaart;
+  if (codeKaartBezig) return codeKaartBezig;
+
+  codeKaartBezig = (async () => {
+    try {
+      const map = await leesCodeSheet();
+      codeKaart = { map, gelezen: Date.now(), bron: "sheet" };
+      console.log(`\u2713 Leadsource-codes uit de sheet: ${Object.keys(map).length} codes`);
+    } catch (e) {
+      // Keep the previous good read if there is one; otherwise the built-in table.
+      const adres = serviceAccountAdres();
+      console.warn(`Leadsource-sheet onbereikbaar (${e.message}).` +
+        (adres ? ` Deel het bestand met ${adres} (lezer).` : "") +
+        " Rapport gebruikt de ingebouwde lijst.");
+      if (!codeKaart) codeKaart = { map: LEADS_CODE_CHANNEL, gelezen: Date.now(), bron: "ingebouwd" };
+    } finally {
+      codeKaartBezig = null;
+    }
+    return codeKaart;
+  })();
+  return codeKaartBezig;
+}
+
+function leadsChannel(code, kaart) {
   const c = String(code || "").trim().toUpperCase();
   if (!c) return "NONE";
-  return LEADS_CODE_CHANNEL[c] || "OTHER";
+  return (kaart || LEADS_CODE_CHANNEL)[c] || "OTHER";
 }
 
 function leadsCentre(raw) {
@@ -209,6 +300,11 @@ async function leadsRapport(from, to, type, metTests) {
       return true;
     });
 
+    // The sheet decides what a code means; the built-in table only fills in
+    // when the sheet cannot be reached.
+    const kaartBron = await codeKaartOphalen();
+    const kaart = kaartBron.map;
+
     const months = {};      // "2026-08" -> { ORG: n, ... , total }
     const centres = {};     // "2026-08" -> { amsterdam: { ORG: n, ..., total } }
     const unmapped = {};
@@ -218,7 +314,7 @@ async function leadsRapport(from, to, type, metTests) {
     for (const c of wanted) {
       const month = String(c.createdate || "").slice(0, 7);
       if (!month) continue;
-      const ch = leadsChannel(c.leadsource_code);
+      const ch = leadsChannel(c.leadsource_code, kaart);
       const centre = leadsCentre(c.centrum_naam);
 
       months[month] = months[month] || { total: 0 };
@@ -243,7 +339,7 @@ async function leadsRapport(from, to, type, metTests) {
       if (c.lezing_datum_iso) talks++;
       if (ch !== "NONE") coded++;
       const raw = String(c.leadsource_code || "").trim().toUpperCase();
-      if (raw && !LEADS_CODE_CHANNEL[raw]) unmapped[raw] = (unmapped[raw] || 0) + 1;
+      if (raw && !kaart[raw]) unmapped[raw] = (unmapped[raw] || 0) + 1;
     }
 
     const antwoord = {
@@ -256,6 +352,9 @@ async function leadsRapport(from, to, type, metTests) {
       maanden: months,
       centraPerMaand: centres,
       onbekendeCodes: unmapped,
+      mappingBron:    kaartBron.bron,
+      mappingGelezen: new Date(kaartBron.gelezen).toISOString(),
+      mappingCodes:   Object.keys(kaart).length,
       // Newest first, so the most recent arrivals are at the top of the list.
       leads: leads.sort((x, y) => (x.datum < y.datum ? 1 : -1))
     };
@@ -1845,5 +1944,13 @@ if (process.env.MOLLIE_API_KEY) {
 app.get("/:slug([a-z0-9-]{2,30})", redirectTeacherLink);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => console.log(`Server draait op poort ${PORT}`))
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server draait op poort ${PORT}`);
+  // Read the code sheet once at boot: if it is not shared with us yet, the log
+  // says so and names the address to share it with, rather than staying quiet
+  // until someone wonders why a campaign reads as Other.
+  const adres = serviceAccountAdres();
+  if (adres) console.log(`Serviceaccount: ${adres}`);
+  codeKaartOphalen().catch(() => {});
+})
   .on("error", (err) => console.error("Listen error:", err));

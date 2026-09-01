@@ -413,16 +413,29 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
         if(un.length){
           var w=el("div","notice warn");
           w.appendChild(el("div","tag","Unmapped"));
-          w.appendChild(el("p",null,"These codes arrived but are not in this page's mapping: "+un.join(", ")+
-            ". Their leads are counted under Other."));
+          w.appendChild(el("p",null,"These codes arrived but are not in the channel mapping: "+un.join(", ")+
+            ". Their leads are counted under Other. Adding them to the Leadsource Codes sheet "+
+            "is enough — this page picks the sheet up within half an hour."));
           h.appendChild(w);
+        }
+        // Say which mapping produced these numbers. When the sheet cannot be
+        // reached the figures still add up, but a campaign added today would
+        // read as Other, and that is worth seeing rather than guessing at.
+        if(d.mappingBron==="ingebouwd"){
+          var mb=el("div","notice warn");
+          mb.appendChild(el("div","tag","Mapping"));
+          mb.appendChild(el("p",null,"The Leadsource Codes sheet could not be read, so this page fell "+
+            "back to its built-in copy of "+(d.mappingCodes||0)+" codes. Campaigns added to the sheet "+
+            "since that copy was made will show as Other."));
+          h.appendChild(mb);
         }
 
         renderMonths(); renderCentres(); renderLeads();
         $("report").className="";
         var opgehaald = d.opgehaaldOp ? new Date(d.opgehaaldOp) : new Date();
         $("status").textContent = "Last run " + opgehaald.toLocaleTimeString() +
-          " · " + d.totaal + " leads" + (d.uitCache ? " · from cache" : "");
+          " · " + d.totaal + " leads" + (d.uitCache ? " · from cache" : "") +
+          (d.mappingBron==="sheet" ? " · channels from the Leadsource Codes sheet ("+d.mappingCodes+" codes)" : "");
         $("run").disabled=false;
       })
       .catch(function(e){
