@@ -25,8 +25,10 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v30",
+    version: "v31",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
+                           kanalen: Object.values(codeKaart.map).reduce(
+                             (t, k) => (t[k] = (t[k] || 0) + 1, t), {}),
                            gelezen: new Date(codeKaart.gelezen).toISOString(),
                            fout: codeKaart.fout || null }
                        : { bron: "nog niet gelezen" },
@@ -108,7 +110,7 @@ const LEADS_CODE_CHANNEL = {
   CRM4059:"FB", CRM4060:"FB", CRM4065:"FB", CRM4202:"FB", CRM4203:"FB",
   CRM4204:"FB", CRM4205:"FB", CRM4206:"FB", CRM4207:"FB", CRM4208:"FB",
   CRM4209:"FB", CRM4210:"FB", CRM4211:"FB", CRM4212:"FB",
-  CRM4062:"FB",
+  CRM4062:"TTOK",
   CRM2082:"OTHER", CRM2083:"OTHER", CRM2084:"OTHER", CRM2085:"OTHER", CRM2086:"OTHER",
   CRM2090:"OTHER", CRM2091:"OTHER", CRM4064:"OTHER", CRM4201:"OTHER"
 };
@@ -143,9 +145,7 @@ const KANAAL_NAAR_KOLOM = {
 };
 
 // The Channel column decides, the Description does not — Mike's call, so that
-// the sheet is the single place a code's meaning is set. Nothing overrides it
-// today; CRM4062 reads META - Paid there while being described as a TikTok
-// trial, and follows the column like everything else.
+// the sheet is the single place a code's meaning is set. Nothing overrides it.
 const LEADS_CODE_OVERRIDE = {};
 
 let codeKaart = null;          // { map, gelezen, bron }
