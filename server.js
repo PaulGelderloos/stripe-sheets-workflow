@@ -553,6 +553,24 @@ async function sendMail({ to, subject, html }) {
   console.log(`✓ E-mail verstuurd via Apps Script naar: ${to}`);
 }
 
+// Partner van een koppelaanmelding doorloopt nooit het HubSpot-boekformulier
+// (dat gebeurt alleen door de hoofdaanmelder, vóór betaling) en telt dus
+// nooit automatisch mee in de Plekken-kolom. Dit vult dat gat losstaand aan.
+async function verlaagPlekkenPartner({ centrum_naam, initiatie_datum, cursus_tijdslot }) {
+  let res = await fetch(APPS_SCRIPT_URL, {
+    method:   "POST",
+    headers:  { "Content-Type": "application/json" },
+    body:     JSON.stringify({ action: "verlaag_plekken", centrum_naam, initiatie_datum, cursus_tijdslot }),
+    redirect: "manual",
+  });
+  if (res.status >= 300 && res.status < 400) {
+    const location = res.headers.get("location");
+    if (location) res = await fetch(location, { method: "GET" });
+  }
+  if (!res.ok) throw new Error(`Apps Script plekken-relay fout: ${res.status} ${await res.text()}`);
+  console.log(`✓ Plekken verlaagd voor partner: ${centrum_naam} / ${initiatie_datum} / ${cursus_tijdslot}`);
+}
+
 // ── Leraar lookup via plaats/centrum ───────────────────
 const CENTRA_LERAREN = [
   { stad: "alkmaar",           email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
@@ -1570,7 +1588,7 @@ if (process.env.MOLLIE_API_KEY) {
             lastname:            naamDelen.slice(1).join(" ") || "",
             email,
             phone:               telefoon || "",
-            centrum_boekhouding: centrum  || "",
+            centrum_naam:        centrum  || "",
           });
           if (newContact?.id) {
             contactId  = newContact.id;
@@ -1628,22 +1646,26 @@ if (process.env.MOLLIE_API_KEY) {
             date_of_birth:        extraData.partner_geboortedatum || "",
             cursusbedrag_betaald: bedragPerPersoon,
             initiatie_datum:      initiatieDatum,
-            centrum_boekhouding:  centrum,
+            centrum_naam:         centrum,
             tm_status:            "Meditator",
           };
+          let partnerOk = false;
           const bestaandPartnerContact = await getHubSpotContactByEmail(extraData.partner_email);
           if (bestaandPartnerContact) {
-            await updateHubSpotContact(bestaandPartnerContact.id, partnerProps);
-            console.log(`✓ Partner contact bijgewerkt: ${extraData.partner_email}`);
+            const result = await updateHubSpotContact(bestaandPartnerContact.id, partnerProps);
+            partnerOk = !!result?.id;
+            if (partnerOk) console.log(`✓ Partner contact bijgewerkt: ${extraData.partner_email}`);
           } else {
             const newPartnerContact = await createHubSpotContact(partnerProps);
             if (newPartnerContact?.id) {
+              partnerOk = true;
               console.log(`✓ Partner contact aangemaakt: ${extraData.partner_email}`);
             } else if (newPartnerContact?.error === "CONTACT_EXISTS" || newPartnerContact?.category === "CONFLICT") {
               const match = newPartnerContact.message?.match(/Existing ID:\s*(\d+)/);
               if (match) {
-                await updateHubSpotContact(match[1], partnerProps);
-                console.log(`✓ Partner contact hersteld via CONTACT_EXISTS en bijgewerkt: ${extraData.partner_email}`);
+                const result = await updateHubSpotContact(match[1], partnerProps);
+                partnerOk = !!result?.id;
+                if (partnerOk) console.log(`✓ Partner contact hersteld via CONTACT_EXISTS en bijgewerkt: ${extraData.partner_email}`);
               } else {
                 console.error("Partner contact: CONTACT_EXISTS zonder herleidbaar ID", newPartnerContact);
               }
@@ -1651,7 +1673,34 @@ if (process.env.MOLLIE_API_KEY) {
               console.error("Partner contact aanmaken mislukt:", newPartnerContact);
             }
           }
+          // Vorige keer bleef dit onopgemerkt tot iemand het handmatig moest
+          // corrigeren (verkeerde property-naam liet de hele PATCH/POST
+          // stilzwijgend falen) — nu een zichtbaar alertje in plaats van
+          // alleen een console.error die niemand leest.
+          if (!partnerOk) {
+            try {
+              await sendMail({
+                to:      "paul@gelderloos.com",
+                subject: `⚠ Partner-contact niet bijgewerkt: ${extraData.partner_email}`,
+                html: `<p>De HubSpot-aanroep voor de partner van <strong>${naam}</strong> (${email}) is mislukt. `
+                    + `Partner: ${extraData.partner_voornaam || ""} ${extraData.partner_achternaam || ""} `
+                    + `(${extraData.partner_email}) heeft geen bedrag/status/gegevens meegekregen — check Railway-logs en corrigeer handmatig.</p>`,
+              });
+            } catch (mailErr) {
+              console.error("Partner-alertmail mislukt:", mailErr.message);
+            }
+          }
           await setSoftOptIn(extraData.partner_email);
+
+          try {
+            await verlaagPlekkenPartner({
+              centrum_naam:     centrum,
+              initiatie_datum:  initiatieDatum,
+              cursus_tijdslot:  extraData.partner_tijdslot || tijdslot,
+            });
+          } catch (plekErr) {
+            console.error("Plekken niet bijgewerkt voor partner:", plekErr.message);
+          }
         }
 
         // ── Google Sheets ───────────────────────────────────────
