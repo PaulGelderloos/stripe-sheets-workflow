@@ -317,7 +317,12 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
     shown.forEach(function(l){
       var tr=el("tr", l.test ? "is-test" : null);
       var dt=new Date(l.datum);
-      tr.appendChild(el("td",null, isNaN(dt) ? l.datum : dt.toLocaleDateString()+" "+dt.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})));
+      // Amsterdam time on purpose, whatever clock the viewer is on: HubSpot
+      // shows these leads in Amsterdam time, and a report that disagrees with
+      // HubSpot by an hour or two sends people hunting for leads that exist.
+      tr.appendChild(el("td",null, isNaN(dt) ? l.datum :
+        dt.toLocaleDateString("en-GB", {timeZone:"Europe/Amsterdam"})+" "+
+        dt.toLocaleTimeString("en-GB", {timeZone:"Europe/Amsterdam", hour:"2-digit", minute:"2-digit"})));
       tr.appendChild(el("td",null,titleCase(l.centrum)));
       var ch=CHANNELS.filter(function(c){return c.key===l.kanaal;})[0];
       var tdC=el("td");
@@ -435,7 +440,8 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
         var opgehaald = d.opgehaaldOp ? new Date(d.opgehaaldOp) : new Date();
         $("status").textContent = "Last run " + opgehaald.toLocaleTimeString() +
           " · " + d.totaal + " leads" + (d.uitCache ? " · from cache" : "") +
-          (d.mappingBron==="sheet" ? " · channels from the Leadsource Codes sheet ("+d.mappingCodes+" codes)" : "");
+          (d.mappingBron==="sheet" ? " · channels from the Leadsource Codes sheet ("+d.mappingCodes+" codes)" : "") +
+          " · times in Amsterdam time";
         $("run").disabled=false;
       })
       .catch(function(e){

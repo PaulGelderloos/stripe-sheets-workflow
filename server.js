@@ -25,7 +25,7 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v31",
+    version: "v32",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
                            kanalen: Object.values(codeKaart.map).reduce(
                              (t, k) => (t[k] = (t[k] || 0) + 1, t), {}),
@@ -284,8 +284,8 @@ async function leadsFetchContacts(from, toExclusive) {
   for (let guard = 0; guard < 120; guard++) {
     const body = {
       filterGroups: [{ filters: [
-        { propertyName: "createdate", operator: "GTE", value: String(Date.parse(from)) },
-        { propertyName: "createdate", operator: "LT",  value: String(Date.parse(toExclusive)) },
+        { propertyName: "createdate", operator: "GTE", value: String(amsterdamMiddernacht(from)) },
+        { propertyName: "createdate", operator: "LT",  value: String(amsterdamMiddernacht(toExclusive)) },
         { propertyName: "hs_object_source_label", operator: "EQ", value: "FORM" }
       ]}],
       properties: props,
@@ -311,6 +311,36 @@ const LEADS_CACHE_MS = 5 * 60 * 1000;
 
 // Both the on-screen report and the CSV export go through here, so the file
 // can never disagree with the figures on the page.
+// Every clock in this report is Amsterdam's. HubSpot hands back UTC, and
+// letting that leak through put a lead booked at 00:30 on the 1st into the
+// previous month, started the date range two hours late, and showed Paul a
+// time two hours off what HubSpot shows him.
+const RAPPORT_TZ = "Europe/Amsterdam";
+
+function amsterdamDelen(instant) {
+  const delen = {};
+  for (const d of new Intl.DateTimeFormat("en-GB", {
+    timeZone: RAPPORT_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date(instant))) {
+    if (d.type !== "literal") delen[d.type] = d.value;
+  }
+  return delen;                     // { year, month, day, hour, minute }
+}
+
+// Epoch ms of local midnight for a YYYY-MM-DD date on an Amsterdam clock.
+function amsterdamMiddernacht(ymd) {
+  const utcGok = Date.parse(`${ymd}T00:00:00Z`);
+  const p = amsterdamDelen(utcGok);
+  const lokaal = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute);
+  return utcGok - (lokaal - utcGok);
+}
+
+function amsterdamTekst(instant) {
+  const p = amsterdamDelen(instant);
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
+}
+
 async function leadsRapport(from, to, type, metTests) {
   // End date inclusive: shift a day so the whole final day counts.
   const toEx = new Date(Date.parse(to) + 86400000).toISOString().slice(0, 10);
@@ -357,7 +387,8 @@ async function leadsRapport(from, to, type, metTests) {
     let talks = 0, coded = 0;
 
     for (const c of wanted) {
-      const month = String(c.createdate || "").slice(0, 7);
+      const md = c.createdate ? amsterdamDelen(c.createdate) : null;
+      const month = md ? `${md.year}-${md.month}` : "";
       if (!month) continue;
       const ch = leadsChannel(c.leadsource_code, kaart);
       const centre = leadsCentre(c.centrum_naam);
@@ -445,9 +476,9 @@ app.get("/leads/csv", leadsAuth, async (req, res) => {
   if (p.fout) return res.status(400).type("text/plain").send(p.fout);
   try {
     const d = await leadsRapport(p.from, p.to, p.type, p.metTests);
-    const kop = ["Date", "Centre", "Channel", "Code", "Type", "Test", "Landing page"];
+    const kop = ["Date (Amsterdam)", "Centre", "Channel", "Code", "Type", "Test", "Landing page"];
     const regels = [kop.join(",")].concat((d.leads || []).map(l => [
-      l.datum ? new Date(l.datum).toISOString().replace("T", " ").slice(0, 16) : "",
+      l.datum ? amsterdamTekst(l.datum) : "",
       l.centrum, l.kanaal, l.code, l.type, l.test ? "yes" : "", l.landing
     ].map(csvVeld).join(",")));
 
