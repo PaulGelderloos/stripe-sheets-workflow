@@ -124,8 +124,9 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
     </div>
     <div class="ctl"><label>Lead type</label>
       <div class="segmented" id="leadtype">
-        <button data-type="all" aria-pressed="true">Both</button>
+        <button data-type="all" aria-pressed="true">All</button>
         <button data-type="talk" aria-pressed="false">Intro talks</button>
+        <button data-type="course" aria-pressed="false">Courses</button>
         <button data-type="enq" aria-pressed="false">Enquiries</button>
       </div>
     </div>
@@ -375,7 +376,7 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
         }
         var keys=Object.keys(d.maanden);
         $("sum-title").textContent="Summary — "+(keys.length===1?monthLabel(keys[0]):d.from+" to "+d.to);
-        var typeName = state.type==="talk"?"Intro talk bookings":state.type==="enq"?"Enquiries":"Website leads";
+        var typeName = state.type==="talk"?"Intro talk bookings":state.type==="course"?"Course bookings":state.type==="enq"?"Enquiries":"Website leads";
         var tiles=$("tiles"); tiles.textContent="";
         [[typeName,d.totaal,keys.length+(keys.length===1?" month":" months")+" in range"],
          ["Intro talks",d.introTalks,state.type==="enq"?"excluded by the filter":"of the leads shown"],

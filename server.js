@@ -25,7 +25,7 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v32",
+    version: "v33",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
                            kanalen: Object.values(codeKaart.map).reduce(
                              (t, k) => (t[k] = (t[k] || 0) + 1, t), {}),
@@ -278,7 +278,7 @@ async function leadsFetchContacts(from, toExclusive) {
   // firstname and lastname are read only to spot test bookings; neither they
   // nor the email address leave the server.
   const props = ["createdate", "leadsource_code", "centrum_naam", "lezing_datum_iso",
-                 "firstname", "lastname", "landing_url"];
+                 "firstname", "lastname", "landing_url", "hs_object_source_detail_1"];
   const out = [];
   let after;
   for (let guard = 0; guard < 120; guard++) {
@@ -368,12 +368,16 @@ async function leadsRapport(from, to, type, metTests) {
     const echt = metTests ? contacts : contacts.filter(c => !isTest(c));
     const testsUitgesloten = contacts.length - echt.length;
 
-    const wanted = echt.filter(c => {
-      const isTalk = !!c.lezing_datum_iso;
-      if (type === "talk") return isTalk;
-      if (type === "enq")  return !isTalk;
-      return true;
-    });
+    // Three kinds of lead, not two. A course booking used to fall under
+    // Enquiry because the only test was "has a talk date", which sent Mike
+    // chasing a course signup as if it were an unanswered question.
+    const soort = (c) => {
+      if (c.lezing_datum_iso) return "talk";
+      const form = String(c.hs_object_source_detail_1 || "").toLowerCase();
+      if (form.includes("cursus")) return "course";
+      return "enq";
+    };
+    const wanted = echt.filter(c => type === "all" || soort(c) === type);
 
     // The sheet decides what a code means; the built-in table only fills in
     // when the sheet cannot be reached.
@@ -407,7 +411,7 @@ async function leadsRapport(from, to, type, metTests) {
         centrum: centre,
         kanaal:  ch,
         code:    String(c.leadsource_code || "").trim().toUpperCase(),
-        type:    c.lezing_datum_iso ? "Intro talk" : "Enquiry",
+        type:    { talk: "Intro talk", course: "Course", enq: "Enquiry" }[soort(c)],
         test:    isTest(c),
         landing: c.landing_url || ""
       });
