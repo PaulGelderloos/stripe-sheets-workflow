@@ -1802,6 +1802,12 @@ if (process.env.MOLLIE_API_KEY) {
           }
         }
         const contact        = hubContact?.properties;
+        // Mollie-metadata's `centrum` komt van een URL-param die niet altijd
+        // meekomt (bv. via een kale leraarlink); het HubSpot-contact zelf
+        // heeft het via het boekformulier al betrouwbaar binnengekregen —
+        // zelfde reden waarom initiatieDatum/tijdslot/locatie hieronder ook
+        // van het contact komen, niet van Mollie.
+        centrum = contact?.centrum_naam || centrum;
         const initiatieDatum = contact?.initiatie_datum   || "";
         const tijdslot       = contact?.cursus_tijdslot   || "";
         const locatie        = contact?.plaats_instructie || "";
