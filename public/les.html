@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>TM Teaching — initiations and fees</title>
+<style>
+:root{color-scheme:light;--bg:#faf7f2;--surface:#fff;--surface-2:#f4efe7;--ink:#1c1a16;
+--ink-2:#5b564d;--ink-3:#8a8377;--rule:#e6dfd3;--rule-soft:#efe9de;--accent:#f5aa0a;
+--accent-ink:#9a6500;--critical:#a8261c;--critical-bg:#fbeceb;--ok:#1f6b45;--ok-bg:#eaf3ee}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#131210;--surface:#1c1a16;
+--surface-2:#24211c;--ink:#f6f2e9;--ink-2:#b9b3a6;--ink-3:#877f72;--rule:#34302a;
+--rule-soft:#292520;--accent:#f0c814;--accent-ink:#f0c814;--critical:#ef7268;
+--critical-bg:#2b1a18;--ok:#7fc4a0;--ok-bg:#17251d}}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Roboto,Arial,Helvetica,sans-serif;
+font-weight:300;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 24px 90px}
+.wrap{max-width:1180px;margin:0 auto}
+header{padding:48px 0 22px}
+.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:clamp(30px,4.4vw,44px);line-height:1.1;margin:8px 0 10px}
+h1 em{font-style:italic;color:var(--accent-ink)}
+.dek{max-width:66ch;color:var(--ink-2);font-size:15.5px;margin:0}
+.controls{display:flex;flex-wrap:wrap;gap:14px 18px;align-items:flex-end;padding:18px 20px;
+background:var(--surface);border:1px solid var(--rule);border-radius:4px;margin-top:14px}
+.ctl{display:flex;flex-direction:column;gap:5px}
+.ctl label{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+input[type=date]{font:inherit;font-size:14px;padding:8px 10px;color:var(--ink);background:var(--bg);border:1px solid var(--rule);border-radius:3px}
+button{font:inherit;font-size:14px;cursor:pointer;padding:9px 18px;border-radius:3px;border:1px solid transparent;background:var(--ink);color:var(--bg)}
+button:hover:not(:disabled){opacity:.85}
+button:disabled{opacity:.45;cursor:default}
+button.ghost{background:transparent;color:var(--ink-2);border-color:var(--rule)}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.presets button{padding:7px 12px;font-size:13px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.status{margin-top:13px;font-size:13.5px;color:var(--ink-3);min-height:20px}
+.status.err{color:var(--critical)}
+.notice{display:flex;gap:13px;align-items:flex-start;padding:15px 17px;border-radius:3px;margin-top:20px;font-size:14.5px;line-height:1.55}
+.notice .tag{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;font-weight:500;white-space:nowrap;padding-top:3px}
+.notice p{margin:0;max-width:76ch}
+.notice.warn{background:var(--surface-2);border-left:3px solid var(--accent);color:var(--ink-2)}
+.notice.warn .tag{color:var(--accent-ink)}
+.notice.bad{background:var(--critical-bg);border-left:3px solid var(--critical);color:var(--ink-2)}
+.notice.bad .tag{color:var(--critical)}
+section{padding-top:40px}
+h2{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:25px;margin:0 0 6px}
+.hint{font-size:12.5px;color:var(--ink-3)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin-top:14px}
+.tile{background:var(--surface);padding:18px 20px;display:flex;flex-direction:column;gap:3px}
+.tile .k{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)}
+.tile .v{font-size:36px;font-weight:300;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tile .n{font-size:13px;color:var(--ink-2)}
+.tscroll{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--surface);margin-top:14px}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:520px}
+.sec-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.checkbox{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--ink-2);padding:8px 0;text-transform:none;letter-spacing:0;font-weight:300;cursor:pointer}
+tr.is-test td{color:var(--accent-ink)}
+th,td{padding:9px 13px;text-align:right;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+th{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:500;border-bottom:1px solid var(--rule)}
+th:first-child,td:first-child{text-align:left}
+td{font-variant-numeric:tabular-nums;color:var(--ink-2)}
+td:first-child{color:var(--ink)}
+td b{font-weight:500;color:var(--ink)}
+td.dim{color:var(--ink-3);font-size:12.5px;white-space:normal}
+tr.total td{border-top:1px solid var(--rule);background:var(--surface-2);color:var(--ink)}
+tbody tr:last-child td{border-bottom:none}
+tr.clickable{cursor:pointer}
+tr.clickable:hover td{background:var(--surface-2)}
+tr.clickable[aria-selected=true] td{background:var(--surface-2)}
+tr.clickable[aria-selected=true] td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.empty{padding:24px;text-align:center;color:var(--ink-3);font-size:14px;border:1px dashed var(--rule);border-radius:3px;margin-top:14px}
+.method{border-top:1px solid var(--rule);margin-top:50px;padding-top:22px}
+.method dl{display:grid;grid-template-columns:180px 1fr;gap:8px 24px;margin:0;font-size:13.5px}
+.method dt{color:var(--ink-3)}
+.method dd{margin:0;color:var(--ink-2);max-width:76ch}
+code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--surface-2);padding:1px 5px;border-radius:2px;color:var(--ink)}
+.hide{display:none!important}
+@media(max-width:720px){.method dl{grid-template-columns:1fr;gap:2px 0}.method dt{margin-top:11px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">TM Nederland · Teaching</div>
+    <h1>Initiations and <em>fees</em></h1>
+    <p class="dek">Pick a period and run it. People taught per month with the course fees they paid, then the same
+    figures by centre and by teacher. Click a month to see that month's centres and teachers; click a centre to see its teachers.</p>
+  </header>
+
+  <div class="controls">
+    <div class="ctl"><label for="from">From</label><input type="date" id="from"></div>
+    <div class="ctl"><label for="to">To</label><input type="date" id="to"></div>
+    <div class="ctl"><label>Quick ranges</label>
+      <div class="presets">
+        <button class="ghost" data-preset="this">This month</button>
+        <button class="ghost" data-preset="last">Last month</button>
+        <button class="ghost" data-preset="q">Last 3 months</button>
+        <button class="ghost" data-preset="ytd">Year to date</button>
+      </div>
+    </div>
+    <div class="ctl"><label>Test records</label>
+      <label class="checkbox"><input type="checkbox" id="tests"> Include test records</label>
+    </div>
+    <div class="ctl"><label>&nbsp;</label><button id="run">Run report</button></div>
+  </div>
+  <div class="status" id="status"></div>
+  <div id="gate"></div>
+
+  <div id="report" class="hide">
+    <section>
+      <h2 id="sum-title">Summary</h2>
+      <div class="tiles" id="tiles"></div>
+      <div id="health"></div>
+    </section>
+    <section>
+      <h2>By month</h2>
+      <p class="hint">Click any month to narrow the centre and teacher tables to it. Click again to close.</p>
+      <div class="tscroll"><table id="month-table"></table></div>
+    </section>
+    <section>
+      <h2 id="centre-title">By centre</h2>
+      <p class="hint">Click a centre to see which teachers taught there.</p>
+      <div id="centre-wrap"></div>
+    </section>
+    <section>
+      <h2 id="teacher-title">By teacher</h2>
+      <div id="teacher-wrap"></div>
+    </section>
+    <section>
+      <div class="sec-row">
+        <h2 id="rows-title">The initiations themselves</h2>
+        <button class="ghost" id="download">Download CSV</button>
+      </div>
+      <p class="hint" id="rows-hint"></p>
+      <div id="rows-wrap"></div>
+    </section>
+    <div class="method">
+      <div class="eyebrow" style="margin-bottom:14px">How these numbers are made</div>
+      <dl>
+        <dt>Initiation</dt>
+        <dd>A HubSpot contact with an instruction date (<code>initiatie_datum</code>) inside the period <b>and</b> a course fee on record. A date alone also covers people who signed up and never paid; those are not counted.</dd>
+        <dt>Fee</dt>
+        <dd><code>cursusbedrag_betaald</code>, which is recorded including 21% VAT. The excluding-VAT figure divides by 1.21. A fee of €0 is the second person on a couples tariff and still counts as one initiation.</dd>
+        <dt>Cents fix</dt>
+        <dd>A few fees were typed with the cents attached (62500 for €625). Where the raw value is absurd and value ÷ 100 is an exact tariff, the report corrects it and says how many it corrected.</dd>
+        <dt>Centre</dt>
+        <dd>From the place of instruction as typed by the teacher, mapped to the known centres (addresses and spelling variants included), falling back to the centre name on the record. An unknown place is shown as typed rather than hidden.</dd>
+        <dt>Teacher</dt>
+        <dd>Teachers are typed by hand in several fields and spellings. They are folded onto one name per person, by email address first and then by name.</dd>
+        <dt>Dates</dt>
+        <dd>Instruction dates are calendar days, so there is no time-zone shift. The end date is inclusive.</dd>
+      </dl>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  var state = { data:null, month:null, centre:null };
+
+  function $(id){ return document.getElementById(id); }
+  function el(t,c,x){ var n=document.createElement(t); if(c)n.className=c; if(x!==undefined)n.textContent=x; return n; }
+  function iso(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function monthLabel(k){ var p=k.split("-"); return MONTHS[Number(p[1])-1]+" "+p[0]; }
+  function eur(n){ return "€ "+Number(n||0).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function eur0(n){ return "€ "+Math.round(Number(n||0)).toLocaleString("nl-NL"); }
+
+  function setPreset(kind){
+    var now=new Date(), from, to=now;
+    if(kind==="this") from=new Date(now.getFullYear(),now.getMonth(),1);
+    else if(kind==="last"){ from=new Date(now.getFullYear(),now.getMonth()-1,1); to=new Date(now.getFullYear(),now.getMonth(),0); }
+    else if(kind==="q") from=new Date(now.getFullYear(),now.getMonth()-2,1);
+    else from=new Date(now.getFullYear(),0,1);
+    $("from").value=iso(from); $("to").value=iso(to);
+  }
+
+  // Sum a set of per-month buckets into one table's rows.
+  function merge(perMonth, months){
+    var rows={};
+    months.forEach(function(m){
+      var per=perMonth[m]||{};
+      Object.keys(per).forEach(function(name){
+        var r=rows[name]||(rows[name]={n:0,bruto:0});
+        r.n+=per[name].n; r.bruto+=per[name].bruto;
+      });
+    });
+    Object.keys(rows).forEach(function(k){ rows[k].netto=Math.round(rows[k].bruto/1.21*100)/100; });
+    return rows;
+  }
+  function monthsInScope(){ return state.month ? [state.month] : Object.keys(state.data.maanden); }
+
+  function feeTable(host, first, rows, opts){
+    opts=opts||{};
+    host.textContent="";
+    var names=Object.keys(rows);
+    if(!names.length){ host.appendChild(el("div","empty",opts.empty||"Nothing in this selection.")); return; }
+    names.sort(function(a,b){ return (rows[b].n-rows[a].n)||(rows[b].bruto-rows[a].bruto)||a.localeCompare(b); });
+    var scroll=el("div","tscroll"), table=el("table"), thead=el("thead"), hr=el("tr");
+    [first,"Taught","Fees excl. VAT","Fees incl. VAT","Avg excl. VAT"].forEach(function(h){ hr.appendChild(el("th",null,h)); });
+    thead.appendChild(hr); table.appendChild(thead);
+    var tbody=el("tbody"), tn=0, tb=0;
+    names.forEach(function(name){
+      var r=rows[name]; tn+=r.n; tb+=r.bruto;
+      var tr=el("tr", opts.onClick ? "clickable" : null);
+      if(opts.onClick){
+        tr.dataset.key=name; tr.setAttribute("role","button"); tr.setAttribute("tabindex","0");
+        tr.setAttribute("aria-selected", opts.selected===name ? "true":"false");
+        tr.addEventListener("click",function(){ opts.onClick(name); });
+        tr.addEventListener("keydown",function(e){ if(e.key==="Enter"||e.key===" "){e.preventDefault();opts.onClick(name);} });
+      }
+      tr.appendChild(el("td",null, opts.label ? opts.label(name) : name));
+      var td=el("td"); td.appendChild(el("b",null,String(r.n))); tr.appendChild(td);
+      tr.appendChild(el("td",null,eur(r.netto)));
+      tr.appendChild(el("td",null,eur(r.bruto)));
+      tr.appendChild(el("td",null, r.n ? eur(r.netto/r.n) : "—"));
+      tbody.appendChild(tr);
+    });
+    var t=el("tr","total"); t.appendChild(el("td",null,"Total"));
+    var tg=el("td"); tg.appendChild(el("b",null,String(tn))); t.appendChild(tg);
+    var tnet=Math.round(tb/1.21*100)/100;
+    t.appendChild(el("td",null,eur(tnet))); t.appendChild(el("td",null,eur(tb)));
+    t.appendChild(el("td",null, tn ? eur(tnet/tn) : "—"));
+    tbody.appendChild(t); table.appendChild(tbody); scroll.appendChild(table); host.appendChild(scroll);
+  }
+
+  function renderMonths(){
+    var d=state.data, rows={};
+    Object.keys(d.maanden).forEach(function(k){ rows[k]=d.maanden[k]; });
+    // Months read newest first, like the leads report.
+    var ordered={}; Object.keys(rows).sort().reverse().forEach(function(k){ ordered[k]=rows[k]; });
+    var host=$("month-table").parentNode; host.textContent="";
+    var tmp=el("div"); feeTable(tmp,"Month",ordered,{
+      label:monthLabel, selected:state.month,
+      onClick:function(k){ state.month = (state.month===k)?null:k; state.centre=null; renderAll(); }
+    });
+    // feeTable sorts by count; months must stay chronological. Re-order the rows.
+    var table=tmp.querySelector("table"), tbody=table.querySelector("tbody");
+    var trs=Array.prototype.slice.call(tbody.children);
+    var dataRows=trs.filter(function(tr){ return tr.dataset.key; }).sort(function(a,b){ return a.dataset.key<b.dataset.key?1:-1; });
+    var totalRow=trs.filter(function(tr){ return !tr.dataset.key; })[0];
+    tbody.textContent=""; dataRows.forEach(function(tr){ tbody.appendChild(tr); }); if(totalRow) tbody.appendChild(totalRow);
+    host.appendChild(table); table.id="month-table";
+  }
+
+  function renderCentres(){
+    var d=state.data, rows=merge(d.centraPerMaand, monthsInScope());
+    $("centre-title").textContent = "By centre" + (state.month ? " — "+monthLabel(state.month) : " — whole period");
+    feeTable($("centre-wrap"),"Centre",rows,{
+      selected:state.centre, empty:"No initiations in this selection.",
+      onClick:function(c){ state.centre = (state.centre===c)?null:c; renderTeachers(); renderRows();
+        Array.prototype.forEach.call($("centre-wrap").querySelectorAll("tr.clickable"),function(tr){
+          tr.setAttribute("aria-selected", tr.dataset.key===state.centre?"true":"false"); }); }
+    });
+  }
+
+  function renderTeachers(){
+    var d=state.data, rows;
+    if(state.centre){
+      rows={};
+      monthsInScope().forEach(function(m){
+        var per=(d.lerarenPerCentrumPerMaand[m]||{})[state.centre]||{};
+        Object.keys(per).forEach(function(t){ var r=rows[t]||(rows[t]={n:0,bruto:0}); r.n+=per[t].n; r.bruto+=per[t].bruto; });
+      });
+      Object.keys(rows).forEach(function(k){ rows[k].netto=Math.round(rows[k].bruto/1.21*100)/100; });
+    } else rows=merge(d.lerarenPerMaand, monthsInScope());
+    $("teacher-title").textContent = "By teacher" +
+      (state.centre ? " — "+state.centre : "") + (state.month ? " — "+monthLabel(state.month) : (state.centre?"":" — whole period"));
+    feeTable($("teacher-wrap"),"Teacher",rows,{empty:"No initiations in this selection."});
+  }
+
+  function renderRows(){
+    var d=state.data, host=$("rows-wrap"); host.textContent="";
+    var rows=(d.rijen||[]).filter(function(r){
+      return (!state.month || String(r.datum).slice(0,7)===state.month) && (!state.centre || r.centrum===state.centre);
+    });
+    $("rows-title").textContent = "The initiations themselves" + (state.month ? " — "+monthLabel(state.month) : "") + (state.centre ? " — "+state.centre : "");
+    if(!rows.length){ host.appendChild(el("div","empty","No initiations in this selection.")); $("rows-hint").textContent=""; return; }
+    var capped=rows.length>40, shown=capped?rows.slice(0,40):rows;
+    $("rows-hint").textContent = capped ? "The 40 most recent of "+rows.length+". Download the CSV for all of them."
+      : rows.length+" initiation"+(rows.length===1?"":"s")+", newest first. No names are shown here; the CSV has none either.";
+    var scroll=el("div","tscroll"), table=el("table"), thead=el("thead"), hr=el("tr");
+    ["Date","Centre","Teacher","Fee incl. VAT","Fee excl. VAT","As typed"].forEach(function(h){ hr.appendChild(el("th",null,h)); });
+    thead.appendChild(hr); table.appendChild(thead);
+    var tbody=el("tbody");
+    shown.forEach(function(r){
+      var tr=el("tr", r.test?"is-test":null);
+      tr.appendChild(el("td",null,r.datum));
+      tr.appendChild(el("td",null,r.centrum));
+      tr.appendChild(el("td",null,r.leraar));
+      tr.appendChild(el("td",null,eur(r.bruto)+(r.gecorrigeerd?" *":"")));
+      tr.appendChild(el("td",null,eur(r.netto)));
+      tr.appendChild(el("td","dim",[r.plaatsRuw,r.leraarRuw].filter(Boolean).join(" · ")));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody); scroll.appendChild(table); host.appendChild(scroll);
+  }
+
+  function renderAll(){ renderMonths(); renderCentres(); renderTeachers(); renderRows(); }
+
+  function run(){
+    var from=$("from").value, to=$("to").value;
+    if(!from||!to){ $("status").textContent="Pick a start and end date first."; $("status").className="status err"; return; }
+    if(from>to){ $("status").textContent="The start date is after the end date."; $("status").className="status err"; return; }
+    $("run").disabled=true; $("status").className="status"; $("status").textContent="Reading HubSpot…"; $("gate").textContent="";
+    fetch("/les/data?from="+from+"&to="+to+($("tests").checked?"&tests=1":""),{credentials:"same-origin"})
+      .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }); })
+      .then(function(d){
+        state.data=d; state.month=null; state.centre=null;
+        var keys=Object.keys(d.maanden);
+        if(!keys.length){
+          $("report").className="hide";
+          var n=el("div","notice warn"); n.appendChild(el("div","tag","Nothing taught"));
+          n.appendChild(el("p",null,"No initiations with a fee on record in this period. Try a wider range."));
+          $("gate").appendChild(n); $("status").textContent=""; $("run").disabled=false; return;
+        }
+        $("sum-title").textContent="Summary — "+(keys.length===1?monthLabel(keys[0]):d.from+" to "+d.to);
+        var tiles=$("tiles"); tiles.textContent="";
+        [["People taught",String(d.totaal),keys.length+(keys.length===1?" month":" months")+" in range"],
+         ["Fees excl. VAT",eur0(d.netto),"gross "+eur0(d.bruto)+" incl. VAT"],
+         ["Average fee excl. VAT", d.totaal?eur0(d.netto/d.totaal):"—","per person taught"]
+        ].forEach(function(x){ var t=el("div","tile"); t.appendChild(el("div","k",x[0])); t.appendChild(el("div","v",x[1])); t.appendChild(el("div","n",x[2])); tiles.appendChild(t); });
+
+        var h=$("health"); h.textContent="";
+        if(d.gecorrigeerd){
+          var g=el("div","notice warn"); g.appendChild(el("div","tag","Cents fix"));
+          g.appendChild(el("p",null,d.gecorrigeerd+" fee"+(d.gecorrigeerd===1?" was":"s were")+" typed with the cents attached and "+
+            (d.gecorrigeerd===1?"has":"have")+" been divided by 100 here (marked * below). Worth correcting in HubSpot itself."));
+          h.appendChild(g);
+        }
+        if(d.zonderCentrum||d.zonderLeraar){
+          var w=el("div","notice warn"); w.appendChild(el("div","tag","Incomplete"));
+          w.appendChild(el("p",null,(d.zonderCentrum?d.zonderCentrum+" without a place of instruction":"")+
+            (d.zonderCentrum&&d.zonderLeraar?", ":"")+(d.zonderLeraar?d.zonderLeraar+" without a teacher":"")+
+            ". They are counted in the totals and shown under their own row."));
+          h.appendChild(w);
+        }
+        if(d.metTests){
+          var t=el("div","notice warn"); t.appendChild(el("div","tag","Tests included"));
+          t.appendChild(el("p",null,"Test records are counted in every figure on this page and marked below. Untick the box for the real numbers."));
+          h.appendChild(t);
+        } else if(d.testsUitgesloten){
+          var t2=el("div","notice warn"); t2.appendChild(el("div","tag","Test records"));
+          t2.appendChild(el("p",null,d.testsUitgesloten+" record"+(d.testsUitgesloten===1?"":"s")+" with TST or TEST in a name field "+(d.testsUitgesloten===1?"was":"were")+" left out."));
+          h.appendChild(t2);
+        }
+        renderAll();
+        $("report").className="";
+        var at=d.opgehaaldOp?new Date(d.opgehaaldOp):new Date();
+        $("status").textContent="Last run "+at.toLocaleTimeString("en-GB",{timeZone:"Europe/Amsterdam"})+" · "+d.totaal+" taught"+(d.uitCache?" · from cache":"");
+        $("run").disabled=false;
+      })
+      .catch(function(e){
+        $("report").className="hide"; $("gate").textContent="";
+        var n=el("div","notice bad"); n.appendChild(el("div","tag","Cannot load")); n.appendChild(el("p",null,String(e.message||e)));
+        $("gate").appendChild(n); $("status").textContent=""; $("run").disabled=false;
+      });
+  }
+
+  setPreset("this");
+  Array.prototype.forEach.call(document.querySelectorAll("[data-preset]"),function(b){ b.addEventListener("click",function(){ setPreset(b.dataset.preset); }); });
+  $("run").addEventListener("click",run);
+  $("download").addEventListener("click",function(){
+    var from=$("from").value, to=$("to").value; if(!from||!to) return;
+    window.location.href="/les/csv?from="+from+"&to="+to+($("tests").checked?"&tests=1":"");
+  });
+  run();
+})();
+</script>
+</body>
+</html>

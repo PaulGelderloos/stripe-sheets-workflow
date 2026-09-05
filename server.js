@@ -25,7 +25,7 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v33",
+    version: "v34",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
                            kanalen: Object.values(codeKaart.map).reduce(
                              (t, k) => (t[k] = (t[k] || 0) + 1, t), {}),
@@ -494,6 +494,262 @@ app.get("/leads/csv", leadsAuth, async (req, res) => {
     console.error("Leads CSV:", err.message);
     res.status(502).type("text/plain").send("HubSpot antwoordde niet: " + err.message);
   }
+});
+
+// ── Teaching report ────────────────────────────────────
+// Initiations and course fees per month, centre and teacher, for the same
+// readers as the leads report and behind the same password. An initiation is
+// a contact with an instruction date in the period AND a course fee on record:
+// a date alone also covers people who signed up and never paid, and those are
+// not initiations (Paul, July 2026). A fee of 0 still counts — that is the
+// partner on a couples tariff, whose fee sits on the other record.
+
+const LES_BTW = 1.21;
+const LES_TIERS = new Set([100, 245, 345, 495, 625, 672.5, 755, 895, 1135, 1295, 1345]);
+
+// Some fees were typed with the cents attached — 62500 for €625. Recognisable
+// because the raw value is absurd while value/100 lands exactly on a tariff.
+function lesBedrag(raw) {
+  const v = Number(raw);
+  if (!Number.isFinite(v)) return { bedrag: 0, gecorrigeerd: false };
+  if (v >= 10000 && LES_TIERS.has(v / 100)) return { bedrag: v / 100, gecorrigeerd: true };
+  return { bedrag: v, gecorrigeerd: false };
+}
+
+// plaats_instructie is a free-text place, sometimes an address. Map what we
+// have seen to a centre; unknown values are kept as typed so they show up
+// rather than vanishing into a wrong bucket. Falls back to centrum_naam.
+const LES_PLAATS_CENTRUM = [
+  [/gaffelaarspad|^amsterdam\b/,                 "Amsterdam"],
+  [/mondestraat|utrecht[\s-]*stad/,              "Utrecht Stad"],
+  [/de\s*meern|^demeern|3453 ja utrecht|^utrecht$/, "Utrecht"],
+  [/lelystad/,                                   "Lelystad"],
+  [/^almere/,                                    "Almere"],
+  [/eindhoven|einhoven|meerhoven|meerveldhoven|^best$/, "Eindhoven"],
+  [/den[\s-]*haag|^delft$/,                      "Den Haag"],
+  [/schiedam|rotterdam/,                         "Rotterdam"],
+  [/nijmegen/,                                   "Nijmegen"],
+  [/heerlen|voerendaal/,                         "Heerlen"],
+  [/odili|vlodrop|roermond|herten/,              "Roermond"],
+  [/waalwijk/,                                   "Waalwijk"],
+  [/krabbendijke|zevenbergen|zeeland/,           "Zeeland"],
+  [/valkenburg|maastricht/,                      "Maastricht-Valkenburg"],
+  [/oldenzaal|enschede|hengelo/,                 "Oldenzaal"],
+  [/deventer/,                                   "Deventer"],
+  [/apeldoorn/,                                  "Apeldoorn"],
+  [/hilversum|het\s*gooi/,                       "Het Gooi"],
+  [/haren|groningen/,                            "Groningen"],
+  [/alkmaar/,                                    "Alkmaar"],
+  [/leeuwarden/,                                 "Leeuwarden"],
+  [/emmen/,                                      "Emmen"],
+  [/breda/,                                      "Breda"],
+  [/arnhem/,                                     "Arnhem"],
+  [/wageningen/,                                 "Wageningen"],
+  [/wassenaar/,                                  "Wassenaar"],
+  [/zwolle/,                                     "Zwolle"],
+  [/tilburg/,                                    "Tilburg"],
+  [/boxtel|hertogenbosch|den bosch/,             "'s-Hertogenbosch"],
+];
+function lesCentrum(plaats, centrumNaam) {
+  for (const bron of [plaats, centrumNaam]) {
+    const v = String(bron || "").trim().toLowerCase();
+    if (!v || v === "alle centra (online)") continue;
+    for (const [re, naam] of LES_PLAATS_CENTRUM) if (re.test(v)) return naam;
+    return v.replace(/(^|[\s\-\/])([a-z])/g, (_, a, b) => a + b.toUpperCase());
+  }
+  return "No centre recorded";
+}
+
+// Teachers are typed by hand in three fields and a dozen spellings. The
+// address is the most stable identity; names are folded onto it, and names
+// without a known address are normalised through the alias table.
+const LES_LERAAR_EMAIL = {
+  "paul@gelderloos.com": "Paul Gelderloos", "amsterdam@tm.nl": "Paul Gelderloos",
+  "nationaal@transcendentemeditatie.com": "Paul Gelderloos", "alkmaar@tm.nl": "Paul Gelderloos",
+  "iwcvos@gmail.com": "Sjoerd Vos", "denhaag@tm.nl": "Sjoerd Vos",
+  "charles.jung@tm.org": "Charles & Elsa Jung",
+  "geluca@hccnet.nl": "Gerrie Lucassen", "rotterdam@tm.nl": "Gerrie Lucassen",
+  "ellmer@gmail.com": "Almar Meijles", "eindhoven.nl@tm.org": "Almar Meijles", "eindhoven.tm@gmail.com": "Almar Meijles",
+  "soma@xs4all.nl": "Wim & Marike Schoots", "m.schoots@xs4all.nl": "Wim & Marike Schoots",
+  "lelystad@tm.nl": "Wim & Marike Schoots", "almere@tm.nl": "Wim & Marike Schoots",
+  "utrecht-stad@tm.nl": "Elles Jongenelen", "ellesjongenelen@hotmail.com": "Elles Jongenelen",
+  "utrecht@tm.nl": "Gerda Jongenelen", "jans-jong@planet.nl": "Gerda Jongenelen",
+  "heerlen@tm.nl": "Jos Verhoeven", "josidhats@gmail.com": "Jos Verhoeven",
+  "holhubert@gmail.com": "Hubert Hol",
+  "j.maenen@hetnet.nl": "Josine Maenen",
+  "mgrylyuk@gmail.com": "Mariya Grylyuk", "mariya.grylyuk@tm.org": "Mariya Grylyuk",
+  "waalwijk@tm.nl": "Ria Holt", "tmwaalwijk@kpnmail.nl": "Ria Holt", "riaholt@planet.nl": "Ria Holt",
+  "pknibbeler@solcon.nl": "Pierre Knibbeler", "tmlelystad@gmail.com": "Team Lelystad",
+  "gerritsma.gj@gmail.com": "Gerrit Jan Gerritsma",
+  "conny.postel@maharishi.net": "Conny Postel",
+  "oldenzaal@tm.nl": "Ben Robijns", "ben.robijns@icloud.com": "Ben Robijns",
+  "theo@xs.nl": "Theo", "e.ruchtie@chello.nl": "Erno Ruchtie", "riencalis@hotmail.com": "Rien Calis",
+};
+const LES_LERAAR_ALIAS = [
+  [/huyg/,                       "Jacques Huyghe"],
+  [/jongenel.*elles|elles/,      "Elles Jongenelen"],
+  [/gerda/,                      "Gerda Jongenelen"],
+  [/gerrit|gerritsma/,           "Gerrit Jan Gerritsma"],
+  [/gerrie|lucassen/,            "Gerrie Lucassen"],
+  [/almar|meijles|maeijles/,     "Almar Meijles"],
+  [/sjoerd|vos\b/,               "Sjoerd Vos"],
+  [/paul|gelderloos/,            "Paul Gelderloos"],
+  [/schoots|marike|\bwim\b/,     "Wim & Marike Schoots"],
+  [/charles|elsa|jung|jng/,      "Charles & Elsa Jung"],
+  [/conny|postel/,               "Conny Postel"],
+  [/hubert|hol\b/,               "Hubert Hol"],
+  [/ria holt|holt/,              "Ria Holt"],
+  [/jos verhoeven|verhoeven/,    "Jos Verhoeven"],
+  [/maria li[ev]e/,              "Maria Lieve"],
+  [/annelies/,                   "Annelies van de Bosse"],
+  [/gr[iy]l[iy]uk|mar[iy]a/,     "Mariya Grylyuk"],
+  [/knibbeler|pierre/,           "Pierre Knibbeler"],
+  [/maenen|josine/,              "Josine Maenen"],
+  [/robijns|\bben\b/,            "Ben Robijns"],
+  [/ton jansen|jansen/,          "Ton Jansen"],
+  [/brik/,                       "Hein Brik"],
+];
+function lesLeraar(email, tmleraar, voornaam) {
+  const e = String(email || "").trim().toLowerCase();
+  if (e && LES_LERAAR_EMAIL[e]) return LES_LERAAR_EMAIL[e];
+  for (const naam of [tmleraar, voornaam]) {
+    const v = String(naam || "").trim().toLowerCase();
+    if (!v) continue;
+    for (const [re, canon] of LES_LERAAR_ALIAS) if (re.test(v)) return canon;
+    return v.replace(/(^|\s)([a-z])/g, (_, a, b) => a + b.toUpperCase());
+  }
+  if (e) return e;                       // an address we have not met yet
+  return "No teacher recorded";
+}
+
+async function lesFetchContacts(from, toExclusive) {
+  // initiatie_datum is a date-only property: HubSpot keys it on UTC midnight
+  // of the calendar day, so the boundary is that instant, not Amsterdam's.
+  const dag = (ymd) => String(Date.parse(`${ymd}T00:00:00Z`));
+  const props = ["initiatie_datum", "cursusbedrag_betaald", "plaats_instructie", "centrum_naam",
+                 "tmleraar", "voornaam_leraar", "leraar_email", "firstname", "lastname"];
+  const out = [];
+  let after;
+  for (let guard = 0; guard < 60; guard++) {
+    const body = {
+      filterGroups: [{ filters: [
+        { propertyName: "initiatie_datum", operator: "GTE", value: dag(from) },
+        { propertyName: "initiatie_datum", operator: "LT",  value: dag(toExclusive) },
+        { propertyName: "cursusbedrag_betaald", operator: "HAS_PROPERTY" },
+      ]}],
+      properties: props, limit: 100,
+      sorts: [{ propertyName: "initiatie_datum", direction: "ASCENDING" }],
+    };
+    if (after) body.after = after;
+    const page = await leadsHubspotFetch(body);
+    (page.results || []).forEach(c => out.push(c.properties || {}));
+    after = page.paging && page.paging.next && page.paging.next.after;
+    if (!after) break;
+    await new Promise(r => setTimeout(r, 120));
+  }
+  return out;
+}
+
+const lesCache = new Map();
+
+async function lesRapport(from, to, metTests) {
+  const toEx = new Date(Date.parse(to) + 86400000).toISOString().slice(0, 10);
+  const cacheKey = `${from}|${to}|${metTests ? "met" : "zonder"}tests`;
+  const hit = lesCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < LEADS_CACHE_MS) {
+    return Object.assign({}, hit.data, { opgehaaldOp: new Date(hit.at).toISOString(), uitCache: true });
+  }
+
+  const contacts = await lesFetchContacts(from, toEx);
+  const isTest = c => /\b(tst|test)/i.test(`${c.firstname || ""} ${c.lastname || ""}`);
+  const echt = metTests ? contacts : contacts.filter(c => !isTest(c));
+
+  const maanden = {}, centra = {}, leraren = {}, lerarenPerCentrum = {};
+  const rijen = [];
+  let gecorrigeerd = 0, zonderCentrum = 0, zonderLeraar = 0;
+  const tel = (obj, key, bruto) => {
+    const o = obj[key] || (obj[key] = { n: 0, bruto: 0 });
+    o.n++; o.bruto += bruto;
+  };
+
+  for (const c of echt) {
+    const maand = String(c.initiatie_datum || "").slice(0, 7);
+    if (!maand) continue;
+    const { bedrag, gecorrigeerd: fix } = lesBedrag(c.cursusbedrag_betaald);
+    if (fix) gecorrigeerd++;
+    const centrum = lesCentrum(c.plaats_instructie, c.centrum_naam);
+    const leraar  = lesLeraar(c.leraar_email, c.tmleraar, c.voornaam_leraar);
+    if (centrum === "No centre recorded") zonderCentrum++;
+    if (leraar === "No teacher recorded") zonderLeraar++;
+
+    tel(maanden, maand, bedrag);
+    centra[maand] = centra[maand] || {};        tel(centra[maand], centrum, bedrag);
+    leraren[maand] = leraren[maand] || {};      tel(leraren[maand], leraar, bedrag);
+    lerarenPerCentrum[maand] = lerarenPerCentrum[maand] || {};
+    lerarenPerCentrum[maand][centrum] = lerarenPerCentrum[maand][centrum] || {};
+    tel(lerarenPerCentrum[maand][centrum], leraar, bedrag);
+
+    rijen.push({
+      datum: c.initiatie_datum, centrum, leraar, bruto: bedrag,
+      netto: Math.round(bedrag / LES_BTW * 100) / 100,
+      test: isTest(c), gecorrigeerd: fix,
+      plaatsRuw: c.plaats_instructie || "", leraarRuw: c.tmleraar || c.voornaam_leraar || c.leraar_email || "",
+    });
+  }
+  // Net of VAT is derived once per bucket from the gross, so the two columns
+  // always agree with each other and with the row list.
+  const netto = (o) => { for (const k in o) o[k].netto = Math.round(o[k].bruto / LES_BTW * 100) / 100; return o; };
+  netto(maanden);
+  for (const m in centra) netto(centra[m]);
+  for (const m in leraren) netto(leraren[m]);
+  for (const m in lerarenPerCentrum) for (const c in lerarenPerCentrum[m]) netto(lerarenPerCentrum[m][c]);
+
+  const totaalBruto = Object.values(maanden).reduce((a, b) => a + b.bruto, 0);
+  const data = {
+    from, to, totaal: rijen.length,
+    bruto: totaalBruto, netto: Math.round(totaalBruto / LES_BTW * 100) / 100,
+    maanden, centraPerMaand: centra, lerarenPerMaand: leraren, lerarenPerCentrumPerMaand: lerarenPerCentrum,
+    rijen: rijen.sort((a, b) => (a.datum < b.datum ? 1 : -1)),
+    gecorrigeerd, zonderCentrum, zonderLeraar,
+    metTests, testsUitgesloten: contacts.length - echt.length,
+    opgehaaldOp: new Date().toISOString(), uitCache: false,
+  };
+  lesCache.set(cacheKey, { at: Date.now(), data });
+  return data;
+}
+
+function lesParams(req) {
+  const from = String(req.query.from || ""), to = String(req.query.to || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return { fout: "Geef from en to op als JJJJ-MM-DD." };
+  if (from > to) return { fout: "De begindatum ligt na de einddatum." };
+  return { from, to, metTests: String(req.query.tests || "") === "1" };
+}
+
+app.get("/les/data", leadsAuth, async (req, res) => {
+  const p = lesParams(req);
+  if (p.fout) return res.status(400).json({ error: p.fout });
+  try { res.json(await lesRapport(p.from, p.to, p.metTests)); }
+  catch (err) { console.error("lesrapport:", err.message); res.status(502).json({ error: "HubSpot gaf geen antwoord: " + err.message }); }
+});
+
+app.get("/les/csv", leadsAuth, async (req, res) => {
+  const p = lesParams(req);
+  if (p.fout) return res.status(400).send(p.fout);
+  try {
+    const d = await lesRapport(p.from, p.to, p.metTests);
+    const kop = ["Instruction date", "Centre", "Teacher", "Fee incl VAT", "Fee excl VAT", "Test", "Place as typed", "Teacher as typed"];
+    const regels = [kop.join(",")].concat(d.rijen.map(r => [
+      r.datum, r.centrum, r.leraar, r.bruto.toFixed(2), r.netto.toFixed(2), r.test ? "yes" : "", r.plaatsRuw, r.leraarRuw,
+    ].map(csvVeld).join(",")));
+    const naam = `tm-teaching_${p.from}_${p.to}${p.metTests ? "_with-tests" : ""}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${naam}"`);
+    res.send("﻿" + regels.join("\r\n"));
+  } catch (err) { res.status(502).send("HubSpot gaf geen antwoord: " + err.message); }
+});
+
+app.get("/les", leadsAuth, (req, res) => {
+  res.sendFile(require("path").join(__dirname, "public", "les.html"));
 });
 
 app.get("/leads", leadsAuth, (req, res) => {
