@@ -1197,18 +1197,19 @@ const POSTCODE_CENTRUM = {
   "99": { naam: "Groningen", email: "iwcvos@gmail.com" },
 };
 
-// Anything we cannot place — a foreign postcode (a tenth of them), a missing
-// one, or an enquiry written in English — goes to Amsterdam. The notification
-// goes to Paul rather than the national inbox, which would be mailing itself.
-// Anything we cannot place goes to the national inbox rather than to anyone's
-// personal address — an enquiry is the organisation's, not one teacher's.
+// Anything we cannot place — a foreign postcode (a tenth of them), or a
+// missing one — goes to Amsterdam. The notification goes to the national
+// inbox rather than to anyone's personal address — an enquiry is the
+// organisation's, not one teacher's. Language does not affect this: an
+// English-language enquiry with a valid Dutch postcode is routed on that
+// postcode exactly like a Dutch one — someone typing in English can still
+// live around the corner from a centre.
 const AANVRAAG_ONBEKEND = {
   naam:  "Amsterdam",
   email: "nationaal@transcendentemeditatie.com",
 };
 
-function zoekCentrumViaPostcode(postcode, taal) {
-  if (String(taal || "").toLowerCase() === "en") return AANVRAAG_ONBEKEND;
+function zoekCentrumViaPostcode(postcode) {
   const cijfers = String(postcode || "").replace(/\s/g, "");
   if (!/^[1-9][0-9]{3}/.test(cijfers)) return AANVRAAG_ONBEKEND;   // not a Dutch postcode
   return POSTCODE_CENTRUM[cijfers.slice(0, 2)] || AANVRAAG_ONBEKEND;
@@ -1298,7 +1299,7 @@ app.post("/aanvraag", express.json({ limit: "16kb" }), (req, res) => {
     : null;
   const gevonden = (viaPagina && viaPagina.email)
     ? viaPagina
-    : zoekCentrumViaPostcode(b.postcode, b.taal);
+    : zoekCentrumViaPostcode(b.postcode);
   const ontvanger = (gevonden && gevonden.email) || AANVRAAG_FALLBACK;
   const viaPostcode = !(viaPagina && viaPagina.email);
 
