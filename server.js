@@ -25,7 +25,7 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v36",
+    version: "v37",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
                            kanalen: Object.values(codeKaart.map).reduce(
                              (t, k) => (t[k] = (t[k] || 0) + 1, t), {}),
@@ -758,7 +758,9 @@ app.get("/les/csv", leadsAuth, async (req, res) => {
 // teachers' sheet wrote when the form left it empty. Both in a dozen spellings.
 function aanwCentrum(centrumNaam, lezingCentrum) {
   for (const bron of [centrumNaam, lezingCentrum]) {
-    let v = String(bron || "").trim().toLowerCase();
+    // A stray quote or backtick typed in front of the name must not make it a
+    // centre of its own.
+    let v = String(bron || "").trim().toLowerCase().replace(/^[`'"\s]+/, "");
     if (!v) continue;
     if (v === "online" || v.includes("alle centra")) return "Alle centra (online)";
     v = v.replace(/^s-hertogenbosch$/, "'s-hertogenbosch")

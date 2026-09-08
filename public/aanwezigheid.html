@@ -64,6 +64,13 @@ td b{font-weight:500;color:var(--ink)}
 td.zero{color:var(--ink-3)}
 tr.total td{border-top:1px solid var(--rule);background:var(--surface-2);color:var(--ink)}
 tbody tr:last-child td{border-bottom:none}
+tr.clickable{cursor:pointer}
+tr.clickable td:first-child{color:var(--accent-ink);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+tr.clickable td:first-child::after{content:" \203A";color:var(--ink-3)}
+tr.clickable:hover td{background:var(--surface-2)}
+tr.clickable[aria-selected=true] td{background:var(--surface-2);color:var(--ink)}
+tr.clickable[aria-selected=true] td:first-child{box-shadow:inset 3px 0 0 var(--accent);font-weight:500;text-decoration:none}
+tr.clickable[aria-selected=true] td:first-child::after{content:"  selected";font-weight:300;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-ink)}
 .swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:8px;vertical-align:1px}
 .empty{padding:24px;text-align:center;color:var(--ink-3);font-size:14px;border:1px dashed var(--rule);border-radius:3px;margin-top:14px}
 .method{border-top:1px solid var(--rule);margin-top:50px;padding-top:22px}
@@ -245,6 +252,15 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
     $("centre-title").textContent = "By centre" + (state.month ? " — "+monthLabel(state.month) : " — whole period");
     var names=Object.keys(source).sort(function(a,b){ return source[b].totaal.booked-source[a].totaal.booked; });
     if(!names.length){ host.appendChild(el("div","empty","No centre has logged attendance in this selection.")); return; }
+
+    // One row per centre first, so the Total here is the same number as the
+    // month row above and you can see at a glance which centre the learners
+    // sit in. The per-channel blocks follow underneath.
+    var overzicht={}; names.forEach(function(n){ overzicht[n]=source[n].totaal; });
+    var ov=el("div"); statTable(ov,"Centre",overzicht,{order:names}); host.appendChild(ov);
+    var sub=el("p","hint"); sub.style.marginTop="26px"; sub.textContent="Each centre in turn, split by channel.";
+    host.appendChild(sub);
+
     names.forEach(function(n){
       var c=source[n];
       host.appendChild(el("h3",null,n+"  ·  "+c.totaal.booked+" booked, "+pct(c.totaal.attended,c.totaal.booked)+" attended, "+c.totaal.learned+" learned"));
