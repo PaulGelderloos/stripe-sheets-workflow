@@ -25,7 +25,7 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v38",
+    version: "v39",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
                            kanalen: Object.values(codeKaart.map).reduce(
                              (t, k) => (t[k] = (t[k] || 0) + 1, t), {}),
@@ -765,7 +765,7 @@ function aanwCentrum(centrumNaam, lezingCentrum) {
     // The national online talk on Zoom. The booking form writes it into the
     // same centre field as the local centres, so it shows up among them; the
     // label says what it is rather than echoing the Dutch database value.
-    if (v === "online" || v.includes("alle centra")) return "Online talk (all centres)";
+    if (v === "online" || v.includes("alle centra")) return "National online talk (no centre)";
     v = v.replace(/^s-hertogenbosch$/, "'s-hertogenbosch")
          .replace(/^rotterdam-schiedam$/, "rotterdam")
          .replace(/^lelystad\s*-.*$/, "lelystad")
@@ -778,6 +778,19 @@ function aanwCentrum(centrumNaam, lezingCentrum) {
             .replace(/^'S-/, "'s-");
   }
   return "No centre recorded";
+}
+
+// Online or in person is a property of the talk, not of the centre: Amsterdam
+// runs online talks too. The booking form records it in lezing_type; bookings
+// that reached HubSpot through the teachers' sheet have no type at all, and
+// are kept as "not recorded" rather than guessed.
+function aanwType(lezingType, centrumNaam) {
+  const t = String(lezingType || "").trim().toLowerCase();
+  if (t.startsWith("online")) return "online";
+  if (t.startsWith("op lokatie") || t.startsWith("op locatie") || t === "live" || t === "in person") return "inperson";
+  const c = String(centrumNaam || "").trim().toLowerCase();
+  if (c === "online" || c.includes("alle centra")) return "online";   // the national talk is online by definition
+  return "unknown";
 }
 
 // The teacher's status field, in the four values it actually takes. "Enquirer"
@@ -796,7 +809,7 @@ async function aanwFetchContacts(from, toExclusive) {
   // instruction date in the teaching report — not an Amsterdam clock time.
   const dag = (ymd) => String(Date.parse(`${ymd}T00:00:00Z`));
   const props = ["lezing_datum_iso", "tm_attendance_status", "tm_course_enrolled", "cursusbedrag_betaald",
-                 "initiatie_datum", "leadsource_code", "centrum_naam", "lezing_centrum", "firstname", "lastname"];
+                 "initiatie_datum", "leadsource_code", "centrum_naam", "lezing_centrum", "lezing_type", "firstname", "lastname"];
   const out = [];
   let after;
   for (let guard = 0; guard < 80; guard++) {
@@ -836,9 +849,10 @@ async function aanwOngelogd(from, toExclusive) {
 
 const aanwCache = new Map();
 
-async function aanwRapport(from, to, metTests) {
+async function aanwRapport(from, to, metTests, talk) {
+  talk = ["online", "inperson"].includes(talk) ? talk : "all";
   const toEx = new Date(Date.parse(to) + 86400000).toISOString().slice(0, 10);
-  const cacheKey = `${from}|${to}|${metTests ? "met" : "zonder"}tests`;
+  const cacheKey = `${from}|${to}|${metTests ? "met" : "zonder"}tests|${talk}`;
   const hit = aanwCache.get(cacheKey);
   if (hit && Date.now() - hit.at < LEADS_CACHE_MS) {
     return Object.assign({}, hit.data, { opgehaaldOp: new Date(hit.at).toISOString(), uitCache: true });
@@ -856,11 +870,17 @@ async function aanwRapport(from, to, metTests) {
     o.booked++; o[uitkomst]++; if (learned) o.learned++; if (signup) o.signup++; if (paid) o.paid++;
   };
   const totaal = leeg(), perKanaal = {}, perCentrum = {}, perMaand = {}, perMaandCentrum = {}, onbekend = {};
+  const perType = { online: 0, inperson: 0, unknown: 0 };
   const rijen = [];
 
   for (const c of echt) {
     const uitkomst = aanwUitkomst(c.tm_attendance_status);
     if (!uitkomst) continue;
+    const soort = aanwType(c.lezing_type, c.centrum_naam);
+    perType[soort]++;
+    // The filter narrows to one kind of talk; "all" keeps the unrecorded ones
+    // in, because leaving them out would understate every total.
+    if (talk !== "all" && soort !== talk) continue;
     const kanaal  = leadsChannel(c.leadsource_code, kaart);
     const centrum = aanwCentrum(c.centrum_naam, c.lezing_centrum);
     const maand   = String(c.lezing_datum_iso || "").slice(0, 7)
@@ -889,11 +909,11 @@ async function aanwRapport(from, to, metTests) {
     tel(pmc.totaal, uitkomst, learned, signup, paid);
     tel(pmc.kanalen[kanaal] || (pmc.kanalen[kanaal] = leeg()), uitkomst, learned, signup, paid);
 
-    rijen.push({ datum: c.lezing_datum_iso, centrum, kanaal, code: raw, uitkomst, learned, signup, paid, test: isTest(c) });
+    rijen.push({ datum: c.lezing_datum_iso, centrum, kanaal, code: raw, uitkomst, soort, learned, signup, paid, test: isTest(c) });
   }
 
   const data = {
-    from, to, totaal, perKanaal, perCentrum, perMaand, perMaandCentrum, rijen,
+    from, to, talk, perType, totaal, perKanaal, perCentrum, perMaand, perMaandCentrum, rijen,
     ongelogd, onbekendeCodes: onbekend,
     mappingBron: kaartBron.bron, mappingCodes: Object.keys(kaart).length,
     metTests, testsUitgesloten: contacts.length - echt.length,
@@ -906,7 +926,7 @@ async function aanwRapport(from, to, metTests) {
 app.get("/aanwezigheid/data", leadsAuth, async (req, res) => {
   const p = lesParams(req);
   if (p.fout) return res.status(400).json({ error: p.fout });
-  try { res.json(await aanwRapport(p.from, p.to, p.metTests)); }
+  try { res.json(await aanwRapport(p.from, p.to, p.metTests, String(req.query.talk || "all"))); }
   catch (err) { console.error("aanwezigheid:", err.message); res.status(502).json({ error: "HubSpot gaf geen antwoord: " + err.message }); }
 });
 
@@ -914,15 +934,17 @@ app.get("/aanwezigheid/csv", leadsAuth, async (req, res) => {
   const p = lesParams(req);
   if (p.fout) return res.status(400).send(p.fout);
   try {
-    const d = await aanwRapport(p.from, p.to, p.metTests);
+    const talk = String(req.query.talk || "all");
+    const d = await aanwRapport(p.from, p.to, p.metTests, talk);
     const label = { attended: "Attended", noshow: "No show", cancelled: "Cancelled" };
-    const kop = ["Talk date", "Centre", "Channel", "Code", "Outcome", "Learned TM", "Teacher tick", "Paid course", "Test"];
+    const soortLabel = { online: "Online", inperson: "In person", unknown: "Not recorded" };
+    const kop = ["Talk date", "Centre", "Talk type", "Channel", "Code", "Outcome", "Learned TM", "Teacher tick", "Paid course", "Test"];
     const regels = [kop.join(",")].concat(d.rijen.map(r => [
       typeof r.datum === "string" && r.datum.length === 10 ? r.datum : new Date(Number(r.datum) || r.datum).toISOString().slice(0, 10),
-      r.centrum, r.kanaal, r.code, label[r.uitkomst], r.learned ? "yes" : "", r.signup ? "yes" : "", r.paid ? "yes" : "", r.test ? "yes" : "",
+      r.centrum, soortLabel[r.soort], r.kanaal, r.code, label[r.uitkomst], r.learned ? "yes" : "", r.signup ? "yes" : "", r.paid ? "yes" : "", r.test ? "yes" : "",
     ].map(csvVeld).join(",")));
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="tm-attendance_${p.from}_${p.to}.csv"`);
+    res.setHeader("Content-Disposition", `attachment; filename="tm-attendance_${p.from}_${p.to}${d.talk !== "all" ? "_" + d.talk : ""}.csv"`);
     res.send("﻿" + regels.join("\r\n"));
   } catch (err) { res.status(502).send("HubSpot gaf geen antwoord: " + err.message); }
 });

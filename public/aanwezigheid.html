@@ -32,8 +32,10 @@ button{font:inherit;font-size:14px;cursor:pointer;padding:9px 18px;border-radius
 button:hover:not(:disabled){opacity:.85}
 button:disabled{opacity:.45;cursor:default}
 button.ghost{background:transparent;color:var(--ink-2);border-color:var(--rule)}
-.presets{display:flex;flex-wrap:wrap;gap:6px}
+.presets,.segmented{display:flex;flex-wrap:wrap;gap:6px}
 .presets button{padding:7px 12px;font-size:13px}
+.segmented button{padding:7px 14px;font-size:13px;background:transparent;color:var(--ink-2);border-color:var(--rule)}
+.segmented button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .status{margin-top:13px;font-size:13.5px;color:var(--ink-3);min-height:20px}
 .status.err{color:var(--critical)}
@@ -104,6 +106,13 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
         <button class="ghost" data-preset="ytd">Year to date</button>
       </div>
     </div>
+    <div class="ctl"><label>Talk type</label>
+      <div class="segmented" id="talktype">
+        <button data-talk="all" aria-pressed="true">All</button>
+        <button data-talk="online" aria-pressed="false">Online</button>
+        <button data-talk="inperson" aria-pressed="false">In person</button>
+      </div>
+    </div>
     <div class="ctl"><label>Test bookings</label>
       <label class="checkbox"><input type="checkbox" id="tests"> Include test bookings</label>
     </div>
@@ -156,7 +165,9 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
         <dt>Channel</dt>
         <dd>From <code>leadsource_code</code> via the Leadsource Codes sheet. Bookings made before 25 August 2026 carry no code and sit under "No code"; the channel split only says something from then on.</dd>
         <dt>Centre</dt>
-        <dd>The centre on the booking, falling back to the teacher's own centre where the form left it blank. "Online talk (all centres)" is the intro talk held online on Zoom, offered nationally rather than by one centre; the booking form records it in the same field as the local centres.</dd>
+        <dd>The centre on the booking, falling back to the teacher's own centre where the form left it blank. "National online talk (no centre)" is the Zoom talk offered nationally rather than by one centre.</dd>
+        <dt>Talk type</dt>
+        <dd>Online or in person is a property of the talk, not of the centre — most centres run online talks. It comes from <code>lezing_type</code> on the booking. Bookings that reached HubSpot through the teachers' sheet carry no type; they count under All and are left out of the Online and In person views, with a note saying how many.</dd>
       </dl>
     </div>
   </div>
@@ -174,7 +185,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
     { key:"NONE",  label:"No code", full:"No campaign code on the booking", v:"--c-none" }
   ];
   var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  var state = { data:null, month:null };
+  var state = { data:null, month:null, talk:"all" };
 
   function $(id){ return document.getElementById(id); }
   function el(t,c,x){ var n=document.createElement(t); if(c)n.className=c; if(x!==undefined)n.textContent=x; return n; }
@@ -273,7 +284,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
     if(!from||!to){ $("status").textContent="Pick a start and end date first."; $("status").className="status err"; return; }
     if(from>to){ $("status").textContent="The start date is after the end date."; $("status").className="status err"; return; }
     $("run").disabled=true; $("status").className="status"; $("status").textContent="Reading HubSpot…"; $("gate").textContent="";
-    fetch("/aanwezigheid/data?from="+from+"&to="+to+($("tests").checked?"&tests=1":""),{credentials:"same-origin"})
+    fetch("/aanwezigheid/data?from="+from+"&to="+to+"&talk="+state.talk+($("tests").checked?"&tests=1":""),{credentials:"same-origin"})
       .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }); })
       .then(function(d){
         state.data=d; state.month=null;
@@ -291,7 +302,9 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
          ["Attended",String(t.attended),pct(t.attended,t.booked)+" of bookings"],
          ["No show",String(t.noshow),pct(t.noshow,t.booked)+" of bookings"],
          ["Cancelled",String(t.cancelled),pct(t.cancelled,t.booked)+" of bookings"],
-         ["Learned TM",String(t.learned),pct(t.learned,t.booked)+" of bookings, so far"]
+         ["Learned TM",String(t.learned),pct(t.learned,t.booked)+" of bookings, so far"],
+         ["Talk type", state.talk==="all" ? "All" : state.talk==="online" ? "Online" : "In person",
+           d.perType.online+" online · "+d.perType.inperson+" in person · "+d.perType.unknown+" not recorded"]
         ].forEach(function(x){ var q=el("div","tile"); q.appendChild(el("div","k",x[0])); q.appendChild(el("div","v",x[1])); q.appendChild(el("div","n",x[2])); tiles.appendChild(q); });
 
         var h=$("health"); h.textContent="";
@@ -301,6 +314,12 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
             (d.ongelogd===1?"is":"are")+" in none of the figures above. That is a teacher who has not filled it in yet, not a no-show. "+
             "Logged so far: "+t.booked+" of "+(t.booked+d.ongelogd)+" ("+pct(t.booked,t.booked+d.ongelogd)+")."));
           h.appendChild(o);
+        }
+        if(state.talk!=="all" && d.perType.unknown){
+          var ty=el("div","notice warn"); ty.appendChild(el("div","tag","Type not recorded"));
+          ty.appendChild(el("p",null,d.perType.unknown+" logged booking"+(d.perType.unknown===1?"":"s")+" in this period "+(d.perType.unknown===1?"has":"have")+
+            " no talk type on record and "+(d.perType.unknown===1?"is":"are")+" left out of this filtered view. They are included under All."));
+          h.appendChild(ty);
         }
         var none=(d.perKanaal.NONE||{}).booked||0;
         if(none){
@@ -329,10 +348,16 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
 
   setPreset("last");
   Array.prototype.forEach.call(document.querySelectorAll("[data-preset]"),function(b){ b.addEventListener("click",function(){ setPreset(b.dataset.preset); }); });
+  Array.prototype.forEach.call($("talktype").querySelectorAll("button"),function(b){
+    b.addEventListener("click",function(){
+      state.talk=b.dataset.talk;
+      Array.prototype.forEach.call($("talktype").querySelectorAll("button"),function(o){ o.setAttribute("aria-pressed", o===b?"true":"false"); });
+    });
+  });
   $("run").addEventListener("click",run);
   $("download").addEventListener("click",function(){
     var from=$("from").value, to=$("to").value; if(!from||!to) return;
-    window.location.href="/aanwezigheid/csv?from="+from+"&to="+to+($("tests").checked?"&tests=1":"");
+    window.location.href="/aanwezigheid/csv?from="+from+"&to="+to+"&talk="+state.talk+($("tests").checked?"&tests=1":"");
   });
   run();
 })();
