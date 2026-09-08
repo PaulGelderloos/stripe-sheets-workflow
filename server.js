@@ -25,7 +25,7 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v35",
+    version: "v36",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
                            kanalen: Object.values(codeKaart.map).reduce(
                              (t, k) => (t[k] = (t[k] || 0) + 1, t), {}),
@@ -791,7 +791,7 @@ async function aanwFetchContacts(from, toExclusive) {
   // instruction date in the teaching report — not an Amsterdam clock time.
   const dag = (ymd) => String(Date.parse(`${ymd}T00:00:00Z`));
   const props = ["lezing_datum_iso", "tm_attendance_status", "tm_course_enrolled", "cursusbedrag_betaald",
-                 "leadsource_code", "centrum_naam", "lezing_centrum", "firstname", "lastname"];
+                 "initiatie_datum", "leadsource_code", "centrum_naam", "lezing_centrum", "firstname", "lastname"];
   const out = [];
   let after;
   for (let guard = 0; guard < 80; guard++) {
@@ -846,11 +846,11 @@ async function aanwRapport(from, to, metTests) {
   const isTest = c => /\b(tst|test)/i.test(`${c.firstname || ""} ${c.lastname || ""}`);
   const echt = metTests ? contacts : contacts.filter(c => !isTest(c));
 
-  const leeg = () => ({ booked: 0, cancelled: 0, attended: 0, noshow: 0, signup: 0, paid: 0 });
-  const tel = (o, uitkomst, signup, paid) => {
-    o.booked++; o[uitkomst]++; if (signup) o.signup++; if (paid) o.paid++;
+  const leeg = () => ({ booked: 0, cancelled: 0, attended: 0, noshow: 0, learned: 0, signup: 0, paid: 0 });
+  const tel = (o, uitkomst, learned, signup, paid) => {
+    o.booked++; o[uitkomst]++; if (learned) o.learned++; if (signup) o.signup++; if (paid) o.paid++;
   };
-  const totaal = leeg(), perKanaal = {}, perCentrum = {}, perMaand = {}, onbekend = {};
+  const totaal = leeg(), perKanaal = {}, perCentrum = {}, perMaand = {}, perMaandCentrum = {}, onbekend = {};
   const rijen = [];
 
   for (const c of echt) {
@@ -860,25 +860,35 @@ async function aanwRapport(from, to, metTests) {
     const centrum = aanwCentrum(c.centrum_naam, c.lezing_centrum);
     const maand   = String(c.lezing_datum_iso || "").slice(0, 7)
                  || new Date(Number(c.lezing_datum_iso)).toISOString().slice(0, 7);
-    // "Signed up" is the teacher's tick at the talk. A paid course is the
-    // harder fact and can arrive weeks later without the tick — both are kept.
-    const signup = String(c.tm_course_enrolled) === "true";
-    const paid   = c.cursusbedrag_betaald !== null && c.cursusbedrag_betaald !== undefined && c.cursusbedrag_betaald !== "";
+    // "Learned" is an instruction date on the record, whenever it came — days
+    // or weeks after the talk. It is the one marker that covers everybody: a
+    // partner or family member taught on someone else's payment has a date but
+    // no fee of their own, and the teacher's tick at the talk catches only a
+    // fraction. Both of those are still recorded, for the CSV.
+    const learned = !!c.initiatie_datum;
+    const signup  = String(c.tm_course_enrolled) === "true";
+    const paid    = c.cursusbedrag_betaald !== null && c.cursusbedrag_betaald !== undefined && c.cursusbedrag_betaald !== "";
     const raw = String(c.leadsource_code || "").trim().toUpperCase();
     if (raw && !kaart[raw]) onbekend[raw] = (onbekend[raw] || 0) + 1;
 
-    tel(totaal, uitkomst, signup, paid);
-    tel(perKanaal[kanaal] || (perKanaal[kanaal] = leeg()), uitkomst, signup, paid);
+    tel(totaal, uitkomst, learned, signup, paid);
+    tel(perKanaal[kanaal] || (perKanaal[kanaal] = leeg()), uitkomst, learned, signup, paid);
     const pc = perCentrum[centrum] || (perCentrum[centrum] = { totaal: leeg(), kanalen: {} });
-    tel(pc.totaal, uitkomst, signup, paid);
-    tel(pc.kanalen[kanaal] || (pc.kanalen[kanaal] = leeg()), uitkomst, signup, paid);
-    tel(perMaand[maand] || (perMaand[maand] = leeg()), uitkomst, signup, paid);
+    tel(pc.totaal, uitkomst, learned, signup, paid);
+    tel(pc.kanalen[kanaal] || (pc.kanalen[kanaal] = leeg()), uitkomst, learned, signup, paid);
+    tel(perMaand[maand] || (perMaand[maand] = leeg()), uitkomst, learned, signup, paid);
+    // The same centre blocks, but for one month — so clicking a month in the
+    // page narrows the centre section to it, as the other two reports do.
+    const pm = perMaandCentrum[maand] || (perMaandCentrum[maand] = {});
+    const pmc = pm[centrum] || (pm[centrum] = { totaal: leeg(), kanalen: {} });
+    tel(pmc.totaal, uitkomst, learned, signup, paid);
+    tel(pmc.kanalen[kanaal] || (pmc.kanalen[kanaal] = leeg()), uitkomst, learned, signup, paid);
 
-    rijen.push({ datum: c.lezing_datum_iso, centrum, kanaal, code: raw, uitkomst, signup, paid, test: isTest(c) });
+    rijen.push({ datum: c.lezing_datum_iso, centrum, kanaal, code: raw, uitkomst, learned, signup, paid, test: isTest(c) });
   }
 
   const data = {
-    from, to, totaal, perKanaal, perCentrum, perMaand, rijen,
+    from, to, totaal, perKanaal, perCentrum, perMaand, perMaandCentrum, rijen,
     ongelogd, onbekendeCodes: onbekend,
     mappingBron: kaartBron.bron, mappingCodes: Object.keys(kaart).length,
     metTests, testsUitgesloten: contacts.length - echt.length,
@@ -901,10 +911,10 @@ app.get("/aanwezigheid/csv", leadsAuth, async (req, res) => {
   try {
     const d = await aanwRapport(p.from, p.to, p.metTests);
     const label = { attended: "Attended", noshow: "No show", cancelled: "Cancelled" };
-    const kop = ["Talk date", "Centre", "Channel", "Code", "Outcome", "Signed up", "Paid course", "Test"];
+    const kop = ["Talk date", "Centre", "Channel", "Code", "Outcome", "Learned TM", "Teacher tick", "Paid course", "Test"];
     const regels = [kop.join(",")].concat(d.rijen.map(r => [
       typeof r.datum === "string" && r.datum.length === 10 ? r.datum : new Date(Number(r.datum) || r.datum).toISOString().slice(0, 10),
-      r.centrum, r.kanaal, r.code, label[r.uitkomst], r.signup ? "yes" : "", r.paid ? "yes" : "", r.test ? "yes" : "",
+      r.centrum, r.kanaal, r.code, label[r.uitkomst], r.learned ? "yes" : "", r.signup ? "yes" : "", r.paid ? "yes" : "", r.test ? "yes" : "",
     ].map(csvVeld).join(",")));
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="tm-attendance_${p.from}_${p.to}.csv"`);

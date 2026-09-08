@@ -118,14 +118,15 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
     </section>
     <section>
       <h2>By month</h2>
+      <p class="hint">Click a month to see its centres below. Click again to close.</p>
       <div id="month-wrap"></div>
     </section>
     <section>
       <div class="sec-row">
-        <h2>By centre</h2>
+        <h2 id="centre-title">By centre</h2>
         <button class="ghost" id="download">Download CSV</button>
       </div>
-      <p class="hint">Centres that reported attendance in the period, most bookings first. Each block reads like the summary.</p>
+      <p class="hint">Centres that reported attendance, most bookings first. Click a month above to narrow this to that month; click it again for the whole period.</p>
       <div id="centre-wrap"></div>
     </section>
     <div class="method">
@@ -141,10 +142,10 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
         <dd>Status <code>Attended</code>, plus <code>Enquirer</code> — someone who came along without booking.</dd>
         <dt>No show</dt>
         <dd>Status <code>Not Attended</code>: booked, did not cancel, did not come.</dd>
-        <dt>Signed up</dt>
-        <dd>The teacher ticked <code>tm_course_enrolled</code> at the talk. <b>Paid</b> is the harder fact: a course fee is on record. The two can differ, because payment often lands weeks later without the tick being revisited.</dd>
-        <dt>Attendance rate</dt>
-        <dd>Attended ÷ Booked. Cancellations stay in the denominator, as in the legacy report.</dd>
+        <dt>Learned TM</dt>
+        <dd>An instruction date (<code>initiatie_datum</code>) is on the record — whenever it was set, days or weeks after the talk. This is the one marker that covers everyone: a partner or family member taught on someone else's payment has a date but no fee of their own, and the teacher's tick at the talk catches only a fraction. The CSV still carries both the tick and whether a fee is on record.</dd>
+        <dt>Rates</dt>
+        <dd>Attended ÷ Booked and Learned ÷ Booked. Cancellations stay in the denominator, as in the legacy report. "Learned" keeps growing for a while after the period ends, because people decide later.</dd>
         <dt>Channel</dt>
         <dd>From <code>leadsource_code</code> via the Leadsource Codes sheet. Bookings made before 25 August 2026 carry no code and sit under "No code"; the channel split only says something from then on.</dd>
         <dt>Centre</dt>
@@ -166,7 +167,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
     { key:"NONE",  label:"No code", full:"No campaign code on the booking", v:"--c-none" }
   ];
   var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  var state = { data:null };
+  var state = { data:null, month:null };
 
   function $(id){ return document.getElementById(id); }
   function el(t,c,x){ var n=document.createElement(t); if(c)n.className=c; if(x!==undefined)n.textContent=x; return n; }
@@ -183,15 +184,15 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
     $("from").value=iso(from); $("to").value=iso(to);
   }
 
-  var COLS = ["Booked","Cancelled","Attended","No show","Signed up","Paid","Attd rate","Signup rate"];
+  var COLS = ["Booked","Cancelled","Attended","No show","Learned TM","Attd rate","Learn rate"];
   function statRow(tr, s){
-    [s.booked, s.cancelled, s.attended, s.noshow, s.signup, s.paid].forEach(function(n){
+    [s.booked, s.cancelled, s.attended, s.noshow, s.learned].forEach(function(n){
       var td=el("td", n?null:"zero"); if(n){ var b=el("b",null,String(n)); td.appendChild(b);} else td.textContent="—"; tr.appendChild(td);
     });
     tr.appendChild(el("td",null,pct(s.attended,s.booked)));
-    tr.appendChild(el("td",null,pct(s.signup,s.booked)));
+    tr.appendChild(el("td",null,pct(s.learned,s.booked)));
   }
-  function sumOf(o){ var t={booked:0,cancelled:0,attended:0,noshow:0,signup:0,paid:0}; Object.keys(o).forEach(function(k){ Object.keys(t).forEach(function(f){ t[f]+=o[k][f]||0; }); }); return t; }
+  function sumOf(o){ var t={booked:0,cancelled:0,attended:0,noshow:0,learned:0,signup:0,paid:0}; Object.keys(o).forEach(function(k){ Object.keys(t).forEach(function(f){ t[f]+=o[k][f]||0; }); }); return t; }
 
   // One table: rows are channels (or months), columns the legacy set plus Paid.
   function statTable(host, first, rows, opts){
@@ -205,10 +206,16 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
     thead.appendChild(hr); table.appendChild(thead);
     var tbody=el("tbody");
     keys.forEach(function(k){
-      var tr=el("tr"), td=el("td");
+      var tr=el("tr", opts.onClick ? "clickable" : null), td=el("td");
       var ch=CHANNELS.filter(function(c){return c.key===k;})[0];
       if(ch){ var sw=el("i","swatch"); sw.style.background="var("+ch.v+")"; td.appendChild(sw); td.appendChild(document.createTextNode(ch.label)); }
       else td.textContent = opts.label ? opts.label(k) : k;
+      if(opts.onClick){
+        tr.dataset.key=k; tr.setAttribute("role","button"); tr.setAttribute("tabindex","0");
+        tr.setAttribute("aria-selected", opts.selected===k ? "true":"false");
+        tr.addEventListener("click",function(){ opts.onClick(k); });
+        tr.addEventListener("keydown",function(e){ if(e.key==="Enter"||e.key===" "){e.preventDefault();opts.onClick(k);} });
+      }
       tr.appendChild(td); statRow(tr, rows[k]); tbody.appendChild(tr);
     });
     var t=el("tr","total"); t.appendChild(el("td",null,"Total")); statRow(t, sumOf(rows)); tbody.appendChild(t);
@@ -226,14 +233,21 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
       if(i<CHANNELS.length-1) lg.appendChild(document.createTextNode("  ·  "));
     });
     var months={}; Object.keys(d.perMaand).sort().reverse().forEach(function(k){ months[k]=d.perMaand[k]; });
-    statTable($("month-wrap"),"Month",months,{order:Object.keys(months), label:monthLabel});
+    statTable($("month-wrap"),"Month",months,{order:Object.keys(months), label:monthLabel, selected:state.month,
+      onClick:function(k){ state.month = (state.month===k)?null:k; render(); }});
+    renderCentres();
+  }
 
-    var host=$("centre-wrap"); host.textContent="";
-    var names=Object.keys(d.perCentrum).sort(function(a,b){ return d.perCentrum[b].totaal.booked-d.perCentrum[a].totaal.booked; });
-    if(!names.length){ host.appendChild(el("div","empty","No centre has logged attendance in this period.")); return; }
+  // Centre blocks for the whole period, or for the one month that is selected.
+  function renderCentres(){
+    var d=state.data, host=$("centre-wrap"); host.textContent="";
+    var source = state.month ? (d.perMaandCentrum[state.month]||{}) : d.perCentrum;
+    $("centre-title").textContent = "By centre" + (state.month ? " — "+monthLabel(state.month) : " — whole period");
+    var names=Object.keys(source).sort(function(a,b){ return source[b].totaal.booked-source[a].totaal.booked; });
+    if(!names.length){ host.appendChild(el("div","empty","No centre has logged attendance in this selection.")); return; }
     names.forEach(function(n){
-      var c=d.perCentrum[n];
-      host.appendChild(el("h3",null,n+"  ·  "+c.totaal.booked+" booked, "+pct(c.totaal.attended,c.totaal.booked)+" attended"));
+      var c=source[n];
+      host.appendChild(el("h3",null,n+"  ·  "+c.totaal.booked+" booked, "+pct(c.totaal.attended,c.totaal.booked)+" attended, "+c.totaal.learned+" learned"));
       var box=el("div"); statTable(box,"Channel",c.kanalen,{order:CH_ORDER}); host.appendChild(box);
     });
   }
@@ -246,7 +260,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
     fetch("/aanwezigheid/data?from="+from+"&to="+to+($("tests").checked?"&tests=1":""),{credentials:"same-origin"})
       .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }); })
       .then(function(d){
-        state.data=d;
+        state.data=d; state.month=null;
         var t=d.totaal;
         if(!t.booked){
           $("report").className="hide";
@@ -261,8 +275,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
          ["Attended",String(t.attended),pct(t.attended,t.booked)+" of bookings"],
          ["No show",String(t.noshow),pct(t.noshow,t.booked)+" of bookings"],
          ["Cancelled",String(t.cancelled),pct(t.cancelled,t.booked)+" of bookings"],
-         ["Signed up",String(t.signup),pct(t.signup,t.attended)+" of those who came"],
-         ["Paid a course",String(t.paid),"fee on record so far"]
+         ["Learned TM",String(t.learned),pct(t.learned,t.booked)+" of bookings, so far"]
         ].forEach(function(x){ var q=el("div","tile"); q.appendChild(el("div","k",x[0])); q.appendChild(el("div","v",x[1])); q.appendChild(el("div","n",x[2])); tiles.appendChild(q); });
 
         var h=$("health"); h.textContent="";
