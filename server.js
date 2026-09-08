@@ -25,7 +25,7 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v34",
+    version: "v35",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
                            kanalen: Object.values(codeKaart.map).reduce(
                              (t, k) => (t[k] = (t[k] || 0) + 1, t), {}),
@@ -746,6 +746,174 @@ app.get("/les/csv", leadsAuth, async (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="${naam}"`);
     res.send("﻿" + regels.join("\r\n"));
   } catch (err) { res.status(502).send("HubSpot gaf geen antwoord: " + err.message); }
+});
+
+// ── Intro talk attendance report ───────────────────────
+// What happened to the people who booked an intro talk in a period: did they
+// come, cancel, stay away, sign up. Only bookings the teacher has actually
+// logged count — a blank status is a talk nobody has reported on yet, not a
+// no-show, and mixing the two would make every centre look worse than it is.
+
+// centrum_naam is what the booking form wrote; lezing_centrum is what the
+// teachers' sheet wrote when the form left it empty. Both in a dozen spellings.
+function aanwCentrum(centrumNaam, lezingCentrum) {
+  for (const bron of [centrumNaam, lezingCentrum]) {
+    let v = String(bron || "").trim().toLowerCase();
+    if (!v) continue;
+    if (v === "online" || v.includes("alle centra")) return "Alle centra (online)";
+    v = v.replace(/^s-hertogenbosch$/, "'s-hertogenbosch")
+         .replace(/^rotterdam-schiedam$/, "rotterdam")
+         .replace(/^lelystad\s*-.*$/, "lelystad")
+         .replace(/^roermond.*$/, "roermond")
+         .replace(/^utrecht[\s-]*stad$/, "utrecht stad")
+         .replace(/^de meern$/, "utrecht");
+    // Capitalise after a space, hyphen or slash — but not after the apostrophe
+    // in 's-Hertogenbosch, which would turn it into 'S-Hertogenbosch.
+    return v.replace(/(^|[\s\-\/])([a-z])/g, (_, a, b) => a + b.toUpperCase())
+            .replace(/^'S-/, "'s-");
+  }
+  return "No centre recorded";
+}
+
+// The teacher's status field, in the four values it actually takes. "Enquirer"
+// is someone who turned up without a booking; they attended, so they count as
+// attended rather than disappearing into a fifth column nobody asked for.
+function aanwUitkomst(status) {
+  const v = String(status || "").trim().toLowerCase();
+  if (v === "attended" || v === "enquirer") return "attended";
+  if (v === "not attended") return "noshow";
+  if (v === "afgemeld" || v === "cancelled" || v === "canceled") return "cancelled";
+  return null;                                   // not logged yet
+}
+
+async function aanwFetchContacts(from, toExclusive) {
+  // lezing_datum_iso is keyed on UTC midnight of the calendar day, like the
+  // instruction date in the teaching report — not an Amsterdam clock time.
+  const dag = (ymd) => String(Date.parse(`${ymd}T00:00:00Z`));
+  const props = ["lezing_datum_iso", "tm_attendance_status", "tm_course_enrolled", "cursusbedrag_betaald",
+                 "leadsource_code", "centrum_naam", "lezing_centrum", "firstname", "lastname"];
+  const out = [];
+  let after;
+  for (let guard = 0; guard < 80; guard++) {
+    const body = {
+      filterGroups: [{ filters: [
+        { propertyName: "lezing_datum_iso", operator: "GTE", value: dag(from) },
+        { propertyName: "lezing_datum_iso", operator: "LT",  value: dag(toExclusive) },
+        { propertyName: "tm_attendance_status", operator: "HAS_PROPERTY" },
+      ]}],
+      properties: props, limit: 100,
+      sorts: [{ propertyName: "lezing_datum_iso", direction: "ASCENDING" }],
+    };
+    if (after) body.after = after;
+    const page = await leadsHubspotFetch(body);
+    (page.results || []).forEach(c => out.push(c.properties || {}));
+    after = page.paging && page.paging.next && page.paging.next.after;
+    if (!after) break;
+    await new Promise(r => setTimeout(r, 120));
+  }
+  return out;
+}
+
+// How many bookings in the period have NO status yet — the report shows this
+// so a thin month reads as "not logged yet" instead of "nobody came".
+async function aanwOngelogd(from, toExclusive) {
+  const dag = (ymd) => String(Date.parse(`${ymd}T00:00:00Z`));
+  const res = await leadsHubspotFetch({
+    filterGroups: [{ filters: [
+      { propertyName: "lezing_datum_iso", operator: "GTE", value: dag(from) },
+      { propertyName: "lezing_datum_iso", operator: "LT",  value: dag(toExclusive) },
+      { propertyName: "tm_attendance_status", operator: "NOT_HAS_PROPERTY" },
+    ]}],
+    properties: ["lezing_datum_iso"], limit: 1,
+  });
+  return Number(res.total || 0);
+}
+
+const aanwCache = new Map();
+
+async function aanwRapport(from, to, metTests) {
+  const toEx = new Date(Date.parse(to) + 86400000).toISOString().slice(0, 10);
+  const cacheKey = `${from}|${to}|${metTests ? "met" : "zonder"}tests`;
+  const hit = aanwCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < LEADS_CACHE_MS) {
+    return Object.assign({}, hit.data, { opgehaaldOp: new Date(hit.at).toISOString(), uitCache: true });
+  }
+
+  const [contacts, ongelogd, kaartBron] = await Promise.all([
+    aanwFetchContacts(from, toEx), aanwOngelogd(from, toEx).catch(() => null), codeKaartOphalen(),
+  ]);
+  const kaart = kaartBron.map;
+  const isTest = c => /\b(tst|test)/i.test(`${c.firstname || ""} ${c.lastname || ""}`);
+  const echt = metTests ? contacts : contacts.filter(c => !isTest(c));
+
+  const leeg = () => ({ booked: 0, cancelled: 0, attended: 0, noshow: 0, signup: 0, paid: 0 });
+  const tel = (o, uitkomst, signup, paid) => {
+    o.booked++; o[uitkomst]++; if (signup) o.signup++; if (paid) o.paid++;
+  };
+  const totaal = leeg(), perKanaal = {}, perCentrum = {}, perMaand = {}, onbekend = {};
+  const rijen = [];
+
+  for (const c of echt) {
+    const uitkomst = aanwUitkomst(c.tm_attendance_status);
+    if (!uitkomst) continue;
+    const kanaal  = leadsChannel(c.leadsource_code, kaart);
+    const centrum = aanwCentrum(c.centrum_naam, c.lezing_centrum);
+    const maand   = String(c.lezing_datum_iso || "").slice(0, 7)
+                 || new Date(Number(c.lezing_datum_iso)).toISOString().slice(0, 7);
+    // "Signed up" is the teacher's tick at the talk. A paid course is the
+    // harder fact and can arrive weeks later without the tick — both are kept.
+    const signup = String(c.tm_course_enrolled) === "true";
+    const paid   = c.cursusbedrag_betaald !== null && c.cursusbedrag_betaald !== undefined && c.cursusbedrag_betaald !== "";
+    const raw = String(c.leadsource_code || "").trim().toUpperCase();
+    if (raw && !kaart[raw]) onbekend[raw] = (onbekend[raw] || 0) + 1;
+
+    tel(totaal, uitkomst, signup, paid);
+    tel(perKanaal[kanaal] || (perKanaal[kanaal] = leeg()), uitkomst, signup, paid);
+    const pc = perCentrum[centrum] || (perCentrum[centrum] = { totaal: leeg(), kanalen: {} });
+    tel(pc.totaal, uitkomst, signup, paid);
+    tel(pc.kanalen[kanaal] || (pc.kanalen[kanaal] = leeg()), uitkomst, signup, paid);
+    tel(perMaand[maand] || (perMaand[maand] = leeg()), uitkomst, signup, paid);
+
+    rijen.push({ datum: c.lezing_datum_iso, centrum, kanaal, code: raw, uitkomst, signup, paid, test: isTest(c) });
+  }
+
+  const data = {
+    from, to, totaal, perKanaal, perCentrum, perMaand, rijen,
+    ongelogd, onbekendeCodes: onbekend,
+    mappingBron: kaartBron.bron, mappingCodes: Object.keys(kaart).length,
+    metTests, testsUitgesloten: contacts.length - echt.length,
+    opgehaaldOp: new Date().toISOString(), uitCache: false,
+  };
+  aanwCache.set(cacheKey, { at: Date.now(), data });
+  return data;
+}
+
+app.get("/aanwezigheid/data", leadsAuth, async (req, res) => {
+  const p = lesParams(req);
+  if (p.fout) return res.status(400).json({ error: p.fout });
+  try { res.json(await aanwRapport(p.from, p.to, p.metTests)); }
+  catch (err) { console.error("aanwezigheid:", err.message); res.status(502).json({ error: "HubSpot gaf geen antwoord: " + err.message }); }
+});
+
+app.get("/aanwezigheid/csv", leadsAuth, async (req, res) => {
+  const p = lesParams(req);
+  if (p.fout) return res.status(400).send(p.fout);
+  try {
+    const d = await aanwRapport(p.from, p.to, p.metTests);
+    const label = { attended: "Attended", noshow: "No show", cancelled: "Cancelled" };
+    const kop = ["Talk date", "Centre", "Channel", "Code", "Outcome", "Signed up", "Paid course", "Test"];
+    const regels = [kop.join(",")].concat(d.rijen.map(r => [
+      typeof r.datum === "string" && r.datum.length === 10 ? r.datum : new Date(Number(r.datum) || r.datum).toISOString().slice(0, 10),
+      r.centrum, r.kanaal, r.code, label[r.uitkomst], r.signup ? "yes" : "", r.paid ? "yes" : "", r.test ? "yes" : "",
+    ].map(csvVeld).join(",")));
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="tm-attendance_${p.from}_${p.to}.csv"`);
+    res.send("﻿" + regels.join("\r\n"));
+  } catch (err) { res.status(502).send("HubSpot gaf geen antwoord: " + err.message); }
+});
+
+app.get("/aanwezigheid", leadsAuth, (req, res) => {
+  res.sendFile(require("path").join(__dirname, "public", "aanwezigheid.html"));
 });
 
 app.get("/les", leadsAuth, (req, res) => {
