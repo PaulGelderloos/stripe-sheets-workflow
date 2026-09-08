@@ -25,7 +25,7 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v37",
+    version: "v38",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
                            kanalen: Object.values(codeKaart.map).reduce(
                              (t, k) => (t[k] = (t[k] || 0) + 1, t), {}),
@@ -762,7 +762,10 @@ function aanwCentrum(centrumNaam, lezingCentrum) {
     // centre of its own.
     let v = String(bron || "").trim().toLowerCase().replace(/^[`'"\s]+/, "");
     if (!v) continue;
-    if (v === "online" || v.includes("alle centra")) return "Alle centra (online)";
+    // The national online talk on Zoom. The booking form writes it into the
+    // same centre field as the local centres, so it shows up among them; the
+    // label says what it is rather than echoing the Dutch database value.
+    if (v === "online" || v.includes("alle centra")) return "Online talk (all centres)";
     v = v.replace(/^s-hertogenbosch$/, "'s-hertogenbosch")
          .replace(/^rotterdam-schiedam$/, "rotterdam")
          .replace(/^lelystad\s*-.*$/, "lelystad")
