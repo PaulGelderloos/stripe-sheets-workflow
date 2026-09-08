@@ -174,7 +174,7 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
         <dt>Lead type</dt>
         <dd>An intro talk booking has <code>lezing_datum_iso</code> set. Everything else counts as an enquiry, including course bookings made without a talk.</dd>
         <dt>Centre</dt>
-        <dd><code>centrum_naam</code> from the form, with spelling variants merged.</dd>
+        <dd><code>centrum_naam</code> from the form, with spelling variants merged. "National online talk (no centre)" is the Zoom talk offered nationally rather than by one centre — the same name the attendance report uses.</dd>
         <dt>End date</dt>
         <dd>Inclusive — the whole of the end day counts.</dd>
       </dl>
@@ -201,7 +201,7 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
   function el(t,c,x){ var n=document.createElement(t); if(c)n.className=c; if(x!==undefined)n.textContent=x; return n; }
   function iso(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
   function monthLabel(k){ var p=k.split("-"); return MONTHS[Number(p[1])-1]+" "+p[0]; }
-  function titleCase(s){ return (s.charAt(0)==="—"||s==="No TM Centre") ? s : s.replace(/(^|[\s\-\/])([a-z])/g,function(_,p,c){return p+c.toUpperCase();}); }
+  function titleCase(s){ return (s.charAt(0)==="—"||s==="No TM Centre"||s.indexOf("National online talk")===0) ? s : s.replace(/(^|[\s\-\/])([a-z])/g,function(_,p,c){return p+c.toUpperCase();}); }
 
   function setPreset(kind){
     var now=new Date(), from, to=now;

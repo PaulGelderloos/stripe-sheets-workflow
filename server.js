@@ -25,7 +25,7 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v39",
+    version: "v40",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
                            kanalen: Object.values(codeKaart.map).reduce(
                              (t, k) => (t[k] = (t[k] || 0) + 1, t), {}),
@@ -241,8 +241,10 @@ function leadsChannel(code, kaart) {
 }
 
 function leadsCentre(raw) {
-  const v = String(raw || "").trim().toLowerCase();
+  const v = String(raw || "").trim().toLowerCase().replace(/^[`'"\s]+/, "");
   if (!v) return "No TM Centre";
+  // Same name as in the attendance report, so the two read as one system.
+  if (v === "online" || v.includes("alle centra")) return "National online talk (no centre)";
   if (v === "de meern") return "utrecht";
   if (v === "utrecht-stad" || v === "utrecht stad") return "utrecht stad";
   return v;
