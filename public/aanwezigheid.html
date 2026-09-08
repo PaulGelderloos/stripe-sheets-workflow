@@ -128,11 +128,6 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
       <div id="health"></div>
     </section>
     <section>
-      <h2>All talks — by channel</h2>
-      <div id="summary-wrap"></div>
-      <div id="legend" class="hint" style="margin-top:12px"></div>
-    </section>
-    <section>
       <h2>By month</h2>
       <p class="hint">Click a month to see its centres below. Click again to close.</p>
       <div id="month-wrap"></div>
@@ -142,7 +137,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
         <h2 id="centre-title">By centre</h2>
         <button class="ghost" id="download">Download CSV</button>
       </div>
-      <p class="hint">Centres that reported attendance, most bookings first. Click a month above to narrow this to that month; click it again for the whole period.</p>
+      <p class="hint">Centres that reported attendance, most bookings first; then the same bookings by channel; then each centre split by channel. Click a month above to narrow all of it to that month; click it again for the whole period.</p>
       <div id="centre-wrap"></div>
     </section>
     <div class="method">
@@ -243,13 +238,6 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
 
   function render(){
     var d=state.data;
-    statTable($("summary-wrap"),"Channel",d.perKanaal,{order:CH_ORDER});
-    var lg=$("legend"); lg.textContent="";
-    CHANNELS.forEach(function(c,i){
-      var s=el("span"), q=el("i","swatch"); q.style.background="var("+c.v+")";
-      s.appendChild(q); s.appendChild(document.createTextNode(c.label+" = "+c.full)); lg.appendChild(s);
-      if(i<CHANNELS.length-1) lg.appendChild(document.createTextNode("  ·  "));
-    });
     var months={}; Object.keys(d.perMaand).sort().reverse().forEach(function(k){ months[k]=d.perMaand[k]; });
     statTable($("month-wrap"),"Month",months,{order:Object.keys(months), label:monthLabel, selected:state.month,
       onClick:function(k){ state.month = (state.month===k)?null:k; render(); }});
@@ -269,8 +257,30 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--s
     // sit in. The per-channel blocks follow underneath.
     var overzicht={}; names.forEach(function(n){ overzicht[n]=source[n].totaal; });
     var ov=el("div"); statTable(ov,"Centre",overzicht,{order:names}); host.appendChild(ov);
-    var sub=el("p","hint"); sub.style.marginTop="26px"; sub.textContent="Each centre in turn, split by channel.";
-    host.appendChild(sub);
+
+    // The channel split for the same scope as the table above: the whole period,
+    // or the one month that is selected. Summed from the centre blocks, so it
+    // is the same bookings sliced the other way and its Total matches.
+    var kanalen={};
+    names.forEach(function(n){
+      Object.keys(source[n].kanalen).forEach(function(k){
+        var r=kanalen[k]||(kanalen[k]={booked:0,cancelled:0,attended:0,noshow:0,learned:0,signup:0,paid:0});
+        Object.keys(r).forEach(function(f){ r[f]+=source[n].kanalen[k][f]||0; });
+      });
+    });
+    var h3=el("h2",null,"By channel" + (state.month ? " — "+monthLabel(state.month) : " — whole period"));
+    h3.style.marginTop="40px"; host.appendChild(h3);
+    var kb=el("div"); statTable(kb,"Channel",kanalen,{order:CH_ORDER}); host.appendChild(kb);
+    var lg=el("div","hint"); lg.style.marginTop="12px";
+    CHANNELS.forEach(function(c,i){
+      var s=el("span"), q=el("i","swatch"); q.style.background="var("+c.v+")";
+      s.appendChild(q); s.appendChild(document.createTextNode(c.label+" = "+c.full)); lg.appendChild(s);
+      if(i<CHANNELS.length-1) lg.appendChild(document.createTextNode("  ·  "));
+    });
+    host.appendChild(lg);
+
+    var sub=el("h2",null,"Each centre by channel" + (state.month ? " — "+monthLabel(state.month) : ""));
+    sub.style.marginTop="40px"; host.appendChild(sub);
 
     names.forEach(function(n){
       var c=source[n];
