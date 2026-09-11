@@ -2416,42 +2416,79 @@ if (process.env.MOLLIE_API_KEY) {
         });
 
         // ── Bevestigingsmail aan cursist ────────────────────────
-        await stuurBevestigingCursist({
-          naam,
-          email,
-          centrum,
-          cursusnaam:    meta.cursusnaam,
-          initiatieDatum,
-          tijdslot,
-          locatie,
-          bedragIncl:    meta.bedrag_incl,
-          methode,
-          mollieId:      id,
-          taal,
-          bedrijfsnaam:  extraData.bedrijfsnaam || "",
-        });
+        // Losse try/catch: één misser hier mag de leraar-notificatie en het
+        // vangnet hieronder niet meeslepen in stilte — dat gebeurde bij
+        // Daphne Kagelmaker (11 sep 2026): iets tussen deze twee mails brak,
+        // de hele rest van de betaling verwerkte daardoor onopgemerkt niet
+        // verder, en niemand kreeg ooit een foutmelding te zien.
+        try {
+          await stuurBevestigingCursist({
+            naam,
+            email,
+            centrum,
+            cursusnaam:    meta.cursusnaam,
+            initiatieDatum,
+            tijdslot,
+            locatie,
+            bedragIncl:    meta.bedrag_incl,
+            methode,
+            mollieId:      id,
+            taal,
+            bedrijfsnaam:  extraData.bedrijfsnaam || "",
+          });
+        } catch (mailErr) {
+          console.error("Bevestigingsmail cursist mislukt:", mailErr.message);
+          try {
+            await sendMail({
+              to:      "paul@gelderloos.com",
+              subject: `⚠ Bevestigingsmail mislukt: ${naam} (${email})`,
+              html: `<p>Betaling van <strong>${naam}</strong> (${email}) is verwerkt, maar de bevestigingsmail aan de cursist mislukte.</p>`
+                  + `<p>Foutmelding: ${mailErr.message}</p>`
+                  + `<p>Contact: <a href="https://app-eu1.hubspot.com/contacts/147653339/record/0-1/${contactId}">${contactId}</a></p>`,
+            });
+          } catch (alertErr) {
+            console.error("Alertmail voor mislukte bevestigingsmail ook mislukt:", alertErr.message);
+          }
+        }
 
         // ── Notificatie aan leraar ──────────────────────────────
-        await stuurLeraarsNotificatie({
-          leraarEmail: leraarEmail || "nationaal@transcendentemeditatie.com",
-          voornaamLeraar,
-          cursistNaam:     naam,
-          cursistEmail:    email,
-          cursistTelefoon: telefoonFinal,
-          centrum,
-          initiatieDatum,
-          tijdslot,
-          locatie,
-          cursusnaam:      meta.cursusnaam,
-          bedragIncl:      meta.bedrag_incl,
-          methode,
-          partnerNaam:     extraData.partner_voornaam && extraData.partner_achternaam
-                              ? `${extraData.partner_voornaam} ${extraData.partner_achternaam}` : "",
-          partnerEmail:    extraData.partner_email || "",
-          // Twee mensen hebben twee instructietijden nodig; de boeking legt er
-          // maar één vast. Dit is de wens die de cursist bij het betalen opgaf.
-          partnerTijdslot: extraData.partner_tijdslot || "",
-        });
+        try {
+          await stuurLeraarsNotificatie({
+            leraarEmail: leraarEmail || "nationaal@transcendentemeditatie.com",
+            voornaamLeraar,
+            cursistNaam:     naam,
+            cursistEmail:    email,
+            cursistTelefoon: telefoonFinal,
+            centrum,
+            initiatieDatum,
+            tijdslot,
+            locatie,
+            cursusnaam:      meta.cursusnaam,
+            bedragIncl:      meta.bedrag_incl,
+            methode,
+            partnerNaam:     extraData.partner_voornaam && extraData.partner_achternaam
+                                ? `${extraData.partner_voornaam} ${extraData.partner_achternaam}` : "",
+            partnerEmail:    extraData.partner_email || "",
+            // Twee mensen hebben twee instructietijden nodig; de boeking legt er
+            // maar één vast. Dit is de wens die de cursist bij het betalen opgaf.
+            partnerTijdslot: extraData.partner_tijdslot || "",
+          });
+        } catch (mailErr) {
+          console.error("Leraar-notificatie mislukt:", mailErr.message);
+          try {
+            await sendMail({
+              to:      "paul@gelderloos.com",
+              subject: `⚠ Leraar-notificatie mislukt: ${naam} — ${centrum || "centrum onbekend"}`,
+              html: `<p>Betaling van <strong>${naam}</strong> (${email}) is verwerkt, maar de leraar-notificatie mislukte — `
+                  + `${voornaamLeraar || "de leraar"} (${leraarEmail || "onbekend adres"}) heeft dus niets gehoord.</p>`
+                  + `<p>Foutmelding: ${mailErr.message}</p>`
+                  + `<p>Centrum: ${centrum || "-"}<br>`
+                  + `Contact: <a href="https://app-eu1.hubspot.com/contacts/147653339/record/0-1/${contactId}">${contactId}</a></p>`,
+            });
+          } catch (alertErr) {
+            console.error("Alertmail voor mislukte leraar-notificatie ook mislukt:", alertErr.message);
+          }
+        }
 
         // ── Vangnet: cursusdetails ontbreken ondanks betaling ───
         // Gebeurt vooral wanneer een leraar zijn kale BoekURL (alleen
