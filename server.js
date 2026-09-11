@@ -136,6 +136,16 @@ const KANAAL_NAAR_KOLOM = {
   "organic":                        "ORG",
   "organic - google my business":   "ORG",
   "tiktok":                         "TTOK",
+  // ChatGPT Ads (OpenAI), from 10 Sep 2026. Several spellings, because the
+  // channel name is typed by hand in Mike's sheet and we do not know yet
+  // which one he will pick; an unrecognised name is logged, not guessed.
+  "chatgpt":                        "GPT",
+  "chatgpt ads":                    "GPT",
+  "chatgpt - paid":                 "GPT",
+  "chatgpt (paid)":                 "GPT",
+  "openai":                         "GPT",
+  "openai ads":                     "GPT",
+  "openai - paid":                  "GPT",
   "whatsapp":                       "OTHER",
   "local centre promotion":         "OTHER",
   "email marketing":                "OTHER",

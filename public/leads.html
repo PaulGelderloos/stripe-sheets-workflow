@@ -9,12 +9,12 @@
 :root{color-scheme:light;--bg:#faf7f2;--surface:#fff;--surface-2:#f4efe7;--ink:#1c1a16;
 --ink-2:#5b564d;--ink-3:#8a8377;--rule:#e6dfd3;--rule-soft:#efe9de;--accent:#f5aa0a;
 --accent-ink:#9a6500;--critical:#a8261c;--critical-bg:#fbeceb;--ok:#1f6b45;--ok-bg:#eaf3ee;
---c-org:#1baf7a;--c-fb:#2a78d6;--c-gap:#eb6834;--c-ttok:#e87ba4;--c-other:#a9a296;--c-none:#cfc7b8}
+--c-org:#1baf7a;--c-fb:#2a78d6;--c-gap:#eb6834;--c-ttok:#e87ba4;--c-gpt:#0f9d8a;--c-other:#a9a296;--c-none:#cfc7b8}
 @media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#131210;--surface:#1c1a16;
 --surface-2:#24211c;--ink:#f6f2e9;--ink-2:#b9b3a6;--ink-3:#877f72;--rule:#34302a;
 --rule-soft:#292520;--accent:#f0c814;--accent-ink:#f0c814;--critical:#ef7268;
 --critical-bg:#2b1a18;--ok:#7fc4a0;--ok-bg:#17251d;--c-org:#199e70;--c-fb:#3987e5;
---c-gap:#d95926;--c-ttok:#d55181;--c-other:#6d675c;--c-none:#464038}}
+--c-gap:#d95926;--c-ttok:#d55181;--c-gpt:#2bb5a0;--c-other:#6d675c;--c-none:#464038}}
 *,*::before,*::after{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:Roboto,Arial,Helvetica,sans-serif;
 font-weight:300;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 24px 90px}
@@ -190,6 +190,7 @@ padding:1px 5px;border-radius:2px;color:var(--ink)}
     { key:"FB",    label:"Meta",    full:"Meta (Facebook, Instagram)", v:"--c-fb" },
     { key:"GAP",   label:"GAP",     full:"Google Ads",       v:"--c-gap"   },
     { key:"TTOK",  label:"TTOK",    full:"TikTok",           v:"--c-ttok"  },
+    { key:"GPT",   label:"GPT",     full:"ChatGPT Ads",      v:"--c-gpt"   },
     { key:"OTHER", label:"Other",   full:"Google Ads Grant, WhatsApp, email, referral", v:"--c-other" },
     { key:"NONE",  label:"No code", full:"No campaign code", v:"--c-none"  }
   ];
