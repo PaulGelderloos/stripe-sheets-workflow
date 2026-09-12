@@ -1136,7 +1136,7 @@ const TEACHER_LINKS = {
   "josine":      { email: "josine.maenen@tm.nl",    courses: true  },
   "mariya":      { email: "mariya.grylyuk@tm.org",  courses: true, lang: "en" },
   "paul":        { email: "paul@gelderloos.com",    courses: true  },
-  "ria":         { email: "tmwaalwijk@planet.nl",   courses: true  },
+  "ria":         { email: "tmwaalwijk@kpnmail.nl",  courses: true  },
   "rien":        { email: "riencalis@hotmail.com",  courses: false },
   "sjoerd":      { email: "iwcvos@gmail.com",       courses: true  },
   "ton":          { email: "jans-jong@planet.nl",   courses: true  },
