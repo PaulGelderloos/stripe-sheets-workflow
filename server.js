@@ -25,7 +25,7 @@ app.get("/", (req, res) => {
   codeKaartOphalen().catch(() => {});
   res.json({
     status:  "ok",
-    version: "v41",
+    version: "v42",
     codes:   codeKaart ? { bron: codeKaart.bron, aantal: Object.keys(codeKaart.map).length,
                            kanalen: Object.values(codeKaart.map).reduce(
                              (t, k) => (t[k] = (t[k] || 0) + 1, t), {}),
@@ -1135,7 +1135,7 @@ const TEACHER_LINKS = {
   "jos":         { email: "josidhats@gmail.com",    courses: true  },
   "josine":      { email: "josine.maenen@tm.nl",    courses: true  },
   "mariya":      { email: "mariya.grylyuk@tm.org",  courses: true, lang: "en" },
-  "paul":        { email: "paul@gelderloos.com",    courses: true  },
+  "paul":        { email: "nationaal@transcendentemeditatie.com", courses: true  },
   "ria":         { email: "tmwaalwijk@kpnmail.nl",  courses: true  },
   "rien":        { email: "riencalis@hotmail.com",  courses: false },
   "sjoerd":      { email: "iwcvos@gmail.com",       courses: true  },
@@ -1247,10 +1247,12 @@ const CENTRA_LERAREN = [
   { stad: "alkmaar",           email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
   { stad: "almere",            email: "soma@xs4all.nl",                            leraar: "Wim" },
   { stad: "amersfoort",        email: "jans-jong@planet.nl",                       leraar: "Ton" },
-  // Deliberately not nationaal@ like the website shows: that inbox cannot
-  // notify itself, so Amsterdam's notification goes to Paul personally.
-  { stad: "amsterdam",         email: "paul@gelderloos.com",                       leraar: "Paul" },
-  { stad: "gaffelaarspad",     email: "paul@gelderloos.com",                       leraar: "Paul" },
+  // Amsterdam used to point at Paul's private address, on the assumption that
+  // nationaal@ could not receive mail it sends itself. Tested 13 Sep 2026:
+  // it can. The private address meant participants replied there and those
+  // threads never reached the CRM, so Amsterdam now matches the website.
+  { stad: "amsterdam",         email: "nationaal@transcendentemeditatie.com",     leraar: "Paul" },
+  { stad: "gaffelaarspad",     email: "nationaal@transcendentemeditatie.com",     leraar: "Paul" },
   { stad: "apeldoorn",         email: "iwcvos@gmail.com",                          leraar: "Sjoerd" },
   { stad: "arnhem",            email: "charles.jung@tm.org",                       leraar: "Charles" },
   { stad: "boxtel",            email: "tmwaalwijk@kpnmail.nl",                         leraar: "Ria" },
