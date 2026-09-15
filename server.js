@@ -1198,7 +1198,7 @@ app.get("/b/:slug?", redirectTeacherLink);
 // ── E-mail via Apps Script relay ───────────────────────
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby4hh-ER7zi6E6NZtpSw7tA1vuIRnpGrbTFxaG-l3FduJ6YC2aoARiBlYNLprCOoIP2Tw/exec";
 
-async function sendMail({ to, subject, html }) {
+async function sendMailPoging({ to, subject, html }) {
   // Apps Script antwoordt op elke POST met een 302 naar een
   // script.googleusercontent.com/.../echo-URL die alleen GET accepteert.
   // fetch's ingebouwde redirect:"follow" zet die POST niet betrouwbaar om
@@ -1216,6 +1216,20 @@ async function sendMail({ to, subject, html }) {
   }
   const text = await res.text();
   if (!res.ok) throw new Error(`Apps Script e-mail fout: ${res.status} ${text}`);
+}
+
+// Eén retry: het echo-token achter de redirect is kortlevend, en een enkele
+// trage/haperende Apps Script-uitvoering (11 sep 2026, Iris Mol) leverde een
+// 404 op ná een correct gevolgde redirect — geen structurele fout, want de
+// bevestigingsmail via dezelfde functie ging in dat geval wél goed.
+async function sendMail({ to, subject, html }) {
+  try {
+    await sendMailPoging({ to, subject, html });
+  } catch (eersteFout) {
+    console.warn(`E-mail poging 1 mislukt (${eersteFout.message}), nog één keer proberen...`);
+    await new Promise(r => setTimeout(r, 1500));
+    await sendMailPoging({ to, subject, html });
+  }
   console.log(`✓ E-mail verstuurd via Apps Script naar: ${to}`);
 }
 
