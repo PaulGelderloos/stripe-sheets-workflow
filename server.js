@@ -2340,6 +2340,15 @@ if (process.env.MOLLIE_API_KEY) {
             initiatie_datum:      initiatieDatum,
             centrum_naam:         centrum,
             tm_status:            "Meditator",
+            // Same course as the main booker, so the partner inherits the
+            // teacher, time slot, location and language (18 sep 2026: a
+            // partner contact arrived with none of these, so the teacher
+            // could not see where or with whom she was booked).
+            leraar_email:         leraarEmail    || "",
+            voornaam_leraar:      voornaamLeraar || "",
+            cursus_tijdslot:      extraData.partner_tijdslot || tijdslot || "",
+            plaats_instructie:    locatie || "",
+            taal_nlen:            taal || "NL",
           };
           let partnerOk = false;
           const bestaandPartnerContact = await getHubSpotContactByEmail(extraData.partner_email);
