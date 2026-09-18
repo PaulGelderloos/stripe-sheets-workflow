@@ -2343,6 +2343,13 @@ if (process.env.MOLLIE_API_KEY) {
 
         // ── HubSpot: partner contact aanmaken/bijwerken ─────────
         if (extraData.partner_email) {
+          // The partner's slot field also carries wishes such as "Tegelijk"
+          // (same time as the main booker). Only a real clock time selects a
+          // different course row; anything else means the main booker's slot.
+          // 18 sep 2026: "Tegelijk" reached the seat counter as a time slot,
+          // matched no row, and the couple took one seat instead of two.
+          const partnerTijdslotRuw = String(extraData.partner_tijdslot || "").trim();
+          const partnerTijdslot = /\d{1,2}[:.]\d{2}/.test(partnerTijdslotRuw) ? partnerTijdslotRuw : tijdslot;
           const partnerProps = {
             firstname:            extraData.partner_voornaam      || "",
             lastname:             extraData.partner_achternaam    || "",
@@ -2359,7 +2366,7 @@ if (process.env.MOLLIE_API_KEY) {
             // could not see where or with whom she was booked).
             leraar_email:         leraarEmail    || "",
             voornaam_leraar:      voornaamLeraar || "",
-            cursus_tijdslot:      extraData.partner_tijdslot || tijdslot || "",
+            cursus_tijdslot:      partnerTijdslot || "",
             plaats_instructie:    locatie || "",
             taal_nlen:            taal || "NL",
             ...(tmLeraarNaam ? { tmleraar: tmLeraarNaam } : {}),
@@ -2411,7 +2418,7 @@ if (process.env.MOLLIE_API_KEY) {
             await verlaagPlekken({
               centrum_naam:     centrum,
               initiatie_datum:  initiatieDatum,
-              cursus_tijdslot:  extraData.partner_tijdslot || tijdslot,
+              cursus_tijdslot:  partnerTijdslot,
             });
           } catch (plekErr) {
             console.error("Plekken niet bijgewerkt voor partner:", plekErr.message);
