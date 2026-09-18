@@ -1032,11 +1032,28 @@ async function haalCursusFeed() {
         await new Promise(r => setTimeout(r, 800 * (poging + 1)));
       }
 
-      const json = stripJsonp(await res.text());
+      let json = stripJsonp(await res.text());
       if (!json) throw new Error("geen JSONP-antwoord");
 
       const parsed = JSON.parse(json);
       if (!Array.isArray(parsed.cursussen)) throw new Error("veld cursussen ontbreekt");
+
+      // A booking link typed into the sheet without the "?" before its first
+      // parameter sends the visitor to a form id that does not exist, and
+      // HubSpot answers with a blank page (18 sep 2026, Sjoerd's courses).
+      // Repair it here so one typo in the sheet cannot block payments.
+      let hersteld = 0;
+      for (const c of parsed.cursussen) {
+        const u = String(c.boekUrl || "");
+        if (u && !u.includes("?")) {
+          const m = u.match(/^(https?:\/\/[^&]*?)(leraar_email=|voornaam_leraar=|&)(.*)$/);
+          if (m) { c.boekUrl = `${m[1]}?${m[2] === "&" ? "" : m[2]}${m[3]}`; hersteld++; }
+        }
+      }
+      if (hersteld) {
+        console.warn(`Cursusfeed: ${hersteld} boeklink(s) zonder "?" hersteld — corrigeer kolom H in de configuratiesheet`);
+        json = JSON.stringify(parsed);
+      }
 
       // Apps Script answers its own failures with an empty list plus an error
       // field. Never let that overwrite a good copy.
