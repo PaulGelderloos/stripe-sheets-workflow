@@ -1932,7 +1932,7 @@ if (process.env.MOLLIE_API_KEY) {
 
       const factuurNr = maakFactuurNummer(mollieId);
       const vandaag   = new Date().toLocaleDateString("nl-NL", {
-        day: "numeric", month: "long", year: "numeric",
+        day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Amsterdam",
       });
       const isEN    = taal === "EN";
       const subject = isEN
@@ -2046,7 +2046,7 @@ if (process.env.MOLLIE_API_KEY) {
       const aanhef  = voornaamLeraar ? `Beste ${voornaamLeraar},` : "Beste leraar,";
       const vandaag = new Date().toLocaleString("nl-NL", {
         day: "numeric", month: "long", year: "numeric",
-        hour: "2-digit", minute: "2-digit",
+        hour: "2-digit", minute: "2-digit", timeZone: "Europe/Amsterdam",
       });
 
       const rij = (label, waarde, shaded) => waarde ? `
