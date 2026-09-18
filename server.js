@@ -1234,9 +1234,14 @@ async function sendMailPoging({ to, subject, html }) {
     redirect: "manual",
   });
   if (res.status >= 300 && res.status < 400) {
-    const location = res.headers.get("location");
-    if (!location) throw new Error(`Apps Script e-mail fout: redirect zonder Location-header (${res.status})`);
-    res = await fetch(location, { method: "GET" });
+    // The redirect itself is the proof the script ran: Apps Script only
+    // redirects to the echo URL after doPost() has finished, and the mail is
+    // sent inside doPost(). The echo hop behind it 404s now and then (Google's
+    // short-lived token), and following it turned a delivered mail into a
+    // "failure" — with a retry that delivered it twice (18 sep 2026, Toon
+    // Thijs: two teacher mails plus a false alert). So do not follow it.
+    if (!res.headers.get("location")) throw new Error(`Apps Script e-mail fout: redirect zonder Location-header (${res.status})`);
+    return;
   }
   const text = await res.text();
   if (!res.ok) throw new Error(`Apps Script e-mail fout: ${res.status} ${text}`);
