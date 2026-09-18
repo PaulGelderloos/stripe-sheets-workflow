@@ -1101,8 +1101,15 @@ haalCursusFeed();
 // hammering a struggling upstream every 60 s helps nobody and buries the log.
 // One success returns it to the normal rhythm.
 (function plan() {
+  // No good copy yet — in practice the very first fetch after a restart, which
+  // times out while the container's network settles (18 sep 2026: two deploys
+  // in a row started with "This operation was aborted"). Retry within half a
+  // minute instead of applying the outage backoff, so the first visitor does
+  // not sit through an upstream fetch.
   const rustiger = Math.min(cursusFeed.failures, 4);          // 0..4
-  const wacht = CURSUS_FEED_REFRESH_MS * Math.pow(2, rustiger);
+  const wacht = !cursusFeed.json
+    ? 30 * 1000
+    : CURSUS_FEED_REFRESH_MS * Math.pow(2, rustiger);
   setTimeout(async () => {
     await haalCursusFeed();
     plan();
