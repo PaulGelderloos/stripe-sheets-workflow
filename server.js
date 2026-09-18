@@ -1769,7 +1769,7 @@ if (process.env.MOLLIE_API_KEY) {
     // ── HubSpot helpers ────────────────────────────────
 
     const CONTACT_PROPS = [
-      "leraar_email", "voornaam_leraar", "centrum_naam",
+      "leraar_email", "voornaam_leraar", "centrum_naam", "tmleraar",
       "cursus_tijdslot", "plaats_instructie", "initiatie_datum",
       "taal_nlen", "firstname", "lastname", "phone",
     ].join(",");
@@ -2320,9 +2320,15 @@ if (process.env.MOLLIE_API_KEY) {
           ? parseFloat(meta.bedrag_incl) / 2
           : parseFloat(meta.bedrag_incl);
 
+        // TM-Leraar (full name) was filled in by hand after every booking;
+        // derive it from the teacher address via the lesson-report table and
+        // only when that table knows the address, never from a guess.
+        const tmLeraarNaam = LES_LERAAR_EMAIL[String(leraarEmail || "").trim().toLowerCase()] || "";
+
         await updateHubSpotContact(contactId, {
           cursusbedrag_betaald: bedragPerPersoon,
           tm_status:            "Meditator",
+          ...(tmLeraarNaam && !contact?.tmleraar ? { tmleraar: tmLeraarNaam } : {}),
         });
 
         // ── HubSpot: Soft Opt-in ────────────────────────────────
@@ -2349,6 +2355,7 @@ if (process.env.MOLLIE_API_KEY) {
             cursus_tijdslot:      extraData.partner_tijdslot || tijdslot || "",
             plaats_instructie:    locatie || "",
             taal_nlen:            taal || "NL",
+            ...(tmLeraarNaam ? { tmleraar: tmLeraarNaam } : {}),
           };
           let partnerOk = false;
           const bestaandPartnerContact = await getHubSpotContactByEmail(extraData.partner_email);
